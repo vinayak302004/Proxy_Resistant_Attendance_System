@@ -1,6 +1,11 @@
 import "../../styles/profile.css";
 
 export default function Profile() {
+
+  const openScanner = () => {
+    window.location.href = "/scan"; // route to scanner page
+  };
+
   return (
     <div className="wrapper">
       <div className="card">
@@ -34,6 +39,13 @@ export default function Profile() {
             <span>23-Apr-2024</span>
             <span className="absent">Absent</span>
           </div>
+        </div>
+
+        {/* 🔥 NEW CAMERA BUTTON */}
+        <div className="section center">
+          <button className="btn" onClick={openScanner}>
+            📷 Scan QR for Attendance
+          </button>
         </div>
 
         <div className="section">
