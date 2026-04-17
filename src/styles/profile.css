@@ -1,0 +1,97 @@
+body {
+            margin: 0;
+            background-color: #f0f2f5;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .wrapper {
+            display: flex;
+            justify-content: center;
+            margin-top: 50px;
+        }
+
+        .card {
+            width: 720px;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: #3c6ea8;
+            color: white;
+            padding: 14px 20px;
+            font-size: 16px;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .profile-banner {
+            background: linear-gradient(90deg, #3c6ea8, #4c82c3);
+            padding: 22px;
+            display: flex;
+            align-items: center;
+            color: white;
+        }
+
+        /* 🔥 PROFILE IMAGE FIXED SMALL */
+        .profile-img {
+            width: 70px !important;
+            height: 70px !important;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid white;
+            margin-right: 18px;
+        }
+
+        .profile-info h3 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .profile-info p {
+            margin: 4px 0 0;
+            font-size: 13px;
+        }
+
+        .section {
+            background: #f7f9fb;
+            margin: 20px;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #e6e9ed;
+            font-size: 13px;
+        }
+
+        .present {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .absent {
+            color: #dc3545;
+            font-weight: 500;
+        }
+
+        .btn {
+            background-color: #3c6ea8;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #325f90;
+        }
