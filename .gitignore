@@ -1,5 +1,6 @@
 node_modules/
-logs
+server/node_modules/
+logs/
 *.log
 npm-debug.log*
 yarn-debug.log*
@@ -16,14 +17,13 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
-.vite/
-*.tsbuildinfo
-.firebase/
-coverage/
 tmp/
 temp/
-# package-lock.json
-# yarn.lock
-# pnpm-lock.yaml
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+.firebase/
 *.pid
 *.seed
