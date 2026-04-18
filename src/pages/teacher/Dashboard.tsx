@@ -26,6 +26,7 @@ export default function Dashboard() {
 
     ws.onmessage = (message) => {
       const data = JSON.parse(message.data);
+      console.log("📩 Received:", data);
 
       if (data.type === "attendance") {
         setAttendanceCount((c) => c + 1);
@@ -63,20 +64,23 @@ export default function Dashboard() {
     const newSession = "SESSION_" + Date.now();
     setSessionId(newSession);
 
-    // send first session immediately
-    wsRef.current?.send(JSON.stringify({
-      type: "session",
-      sessionId: newSession
-    }));
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "session",
+        sessionId: newSession
+      }));
+    }
 
     intervalRef.current = setInterval(() => {
       const newSession = "SESSION_" + Date.now();
       setSessionId(newSession);
 
-      wsRef.current?.send(JSON.stringify({
-        type: "session",
-        sessionId: newSession
-      }));
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          type: "session",
+          sessionId: newSession
+        }));
+      }
 
     }, 3000);
   };
@@ -96,7 +100,6 @@ export default function Dashboard() {
 
       <div className="container">
 
-        {/* LEFT PANEL */}
         <div className="card">
           <h2>Welcome, Mr. Smith</h2>
 
@@ -128,7 +131,6 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* RIGHT PANEL */}
         <div className="card center">
           <h2>Live Session</h2>
 
