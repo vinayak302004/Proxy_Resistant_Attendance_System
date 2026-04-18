@@ -3,6 +3,7 @@ const WebSocket = require("ws");
 const wss = new WebSocket.Server({ port: 8080 });
 
 let clients = [];
+let currentSession = null;
 
 wss.on("connection", (ws) => {
   clients.push(ws);
@@ -10,8 +11,21 @@ wss.on("connection", (ws) => {
   ws.on("message", (message) => {
     const data = JSON.parse(message);
 
-    // Broadcast to all (teacher will receive)
+    // ✅ Teacher updates session
+    if (data.type === "session") {
+      currentSession = data.sessionId;
+    }
+
+    // ✅ Student sends attendance
     if (data.type === "attendance") {
+
+      // ❌ Reject old QR
+      if (data.sessionId !== currentSession) {
+        console.log("❌ Expired QR scanned");
+        return;
+      }
+
+      // ✅ Broadcast valid attendance
       clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
           client.send(JSON.stringify({
