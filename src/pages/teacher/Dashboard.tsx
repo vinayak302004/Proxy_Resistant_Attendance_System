@@ -1,40 +1,91 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import "../../styles/dashboard.css";
 
 export default function Dashboard() {
 
   const [attendanceActive, setAttendanceActive] = useState(false);
   const [attendanceCount, setAttendanceCount] = useState(0);
-  const [sessionId, setSessionId] = useState("ABC123");
+  const [sessionId, setSessionId] = useState("SESSION_INIT");
 
+  const wsRef = useRef<WebSocket | null>(null);
+  const intervalRef = useRef<any>(null);
+
+  // ✅ Connect WebSocket once
   useEffect(() => {
     if (localStorage.getItem("role") !== "teacher") {
       window.location.href = "/";
+      return;
     }
 
-    const ws = new WebSocket("ws://localhost:8080");
+    const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      console.log("WebSocket Connected ✅");
+    };
 
     ws.onmessage = (message) => {
       const data = JSON.parse(message.data);
+
       if (data.type === "attendance") {
         setAttendanceCount((c) => c + 1);
       }
     };
+
+    ws.onerror = (err) => {
+      console.error("WebSocket Error:", err);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket Closed");
+    };
+
+    return () => {
+      ws.close();
+    };
   }, []);
 
+  // ✅ Start / Stop Attendance Session
   const toggleSession = () => {
-    setAttendanceActive(!attendanceActive);
-
     if (!attendanceActive) {
-      startQRCode();
+      startSession();
+    } else {
+      stopSession();
     }
+
+    setAttendanceActive(!attendanceActive);
   };
 
-  const startQRCode = () => {
-    setInterval(() => {
+  // ✅ Start QR rotation every 3 sec
+  const startSession = () => {
+    setAttendanceCount(0);
+
+    const newSession = "SESSION_" + Date.now();
+    setSessionId(newSession);
+
+    // send first session immediately
+    wsRef.current?.send(JSON.stringify({
+      type: "session",
+      sessionId: newSession
+    }));
+
+    intervalRef.current = setInterval(() => {
       const newSession = "SESSION_" + Date.now();
       setSessionId(newSession);
-    }, 5000);
+
+      wsRef.current?.send(JSON.stringify({
+        type: "session",
+        sessionId: newSession
+      }));
+
+    }, 3000);
+  };
+
+  // ✅ Stop session
+  const stopSession = () => {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    setSessionId("SESSION_ENDED");
   };
 
   return (
@@ -45,6 +96,7 @@ export default function Dashboard() {
 
       <div className="container">
 
+        {/* LEFT PANEL */}
         <div className="card">
           <h2>Welcome, Mr. Smith</h2>
 
@@ -76,14 +128,21 @@ export default function Dashboard() {
           </button>
         </div>
 
+        {/* RIGHT PANEL */}
         <div className="card center">
           <h2>Live Session</h2>
 
           <p>{sessionId}</p>
 
-          <img
-            src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${sessionId}`}
-          />
+          {attendanceActive && (
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${sessionId}`}
+            />
+          )}
+
+          {!attendanceActive && (
+            <p style={{ color: "gray" }}>Session not active</p>
+          )}
         </div>
 
       </div>

@@ -1,76 +1,93 @@
-import { useEffect } from "react";
+import { useState } from "react";
+import { Html5Qrcode } from "html5-qrcode";
 
 export default function ScanQR() {
 
-  useEffect(() => {
-
-  const ws = new WebSocket("ws://localhost:8080");
+  const [started, setStarted] = useState(false);
 
   const loadScanner = async () => {
     try {
-      // ✅ FORCE CAMERA PERMISSION
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      setStarted(true);
 
-      const Html5Qrcode = (window as any).Html5Qrcode;
-      const scanner = new Html5Qrcode("qr-reader");
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+
+      const qrScanner = new Html5Qrcode("qr-reader");
 
       const cameras = await Html5Qrcode.getCameras();
 
       if (!cameras || cameras.length === 0) {
-        document.getElementById("qr-result")!.innerText = "❌ No camera found!";
+        alert("❌ No camera found");
         return;
       }
 
-      scanner.start(
-        cameras[0].id,
-        {
-          fps: 10,
-          qrbox: 250
-        },
+      const backCamera = cameras.find((cam: any) =>
+        cam.label.toLowerCase().includes("back")
+      );
+
+      const cameraId = backCamera ? backCamera.id : cameras[0].id;
+
+      await qrScanner.start(
+        cameraId,
+        { fps: 10, qrbox: 250 },
         (decodedText: string) => {
 
           document.getElementById("qr-result")!.innerText =
-            `✅ Attendance Marked for ${decodedText}`;
+            `✅ Attendance Marked: ${decodedText}`;
 
-          ws.send(JSON.stringify({
-            type: "attendance",
-            sessionId: decodedText
-          }));
+          const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
 
-          scanner.stop();
+          ws.onopen = () => {
+            ws.send(JSON.stringify({
+              type: "attendance",
+              sessionId: decodedText
+            }));
+          };
+
+          qrScanner.stop();
+        },
+        (errorMessage: string) => {
+          // ignore scan errors
         }
       );
 
     } catch (err) {
-      document.getElementById("qr-result")!.innerText =
-        "❌ Camera permission denied!";
       console.error(err);
+      alert("❌ Camera error / permission denied");
     }
   };
-
-  if (!(window as any).Html5Qrcode) {
-    const script = document.createElement("script");
-    script.src = "https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js";
-    script.onload = loadScanner;
-    document.body.appendChild(script);
-  } else {
-    loadScanner();
-  }
-
-}, []);
 
   return (
     <div style={{ textAlign: "center", marginTop: "40px" }}>
       <h2>Scan QR Code to Mark Attendance</h2>
 
+      <button
+        onClick={loadScanner}
+        disabled={started}
+        style={{
+          padding: "10px 20px",
+          fontSize: "16px",
+          marginBottom: "15px"
+        }}
+      >
+        {started ? "Starting Camera..." : "▶ Start Scanner"}
+      </button>
+
       <div
         id="qr-reader"
-        style={{ width: "100%", maxWidth: "350px", margin: "auto" }}
+        style={{
+          width: "100%",
+          maxWidth: "350px",
+          margin: "auto"
+        }}
       ></div>
 
       <div
         id="qr-result"
-        style={{ marginTop: "15px", fontWeight: "bold" }}
+        style={{
+          marginTop: "15px",
+          fontWeight: "bold"
+        }}
       ></div>
     </div>
   );
