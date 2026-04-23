@@ -43,11 +43,11 @@ export default function Dashboard() {
   // 🔥 Create QR Session (with expiry)
   const createSession = () => {
     const id = "SESSION_" + Date.now();
-    const expiry = Date.now() + 3000; // 3 sec expiry
+    const expiry = Date.now() + 3000;
     return `${id}|${expiry}`;
   };
 
-  // ▶ Start Session
+  // ▶ Start Session (WITH GPS)
   const startSession = () => {
 
     if (!selectedClass || !selectedSubject) {
@@ -55,29 +55,43 @@ export default function Dashboard() {
       return;
     }
 
-    setAttendanceCount(0);
+    // 📍 Get teacher location
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
 
-    const newSession = createSession();
-    setSessionId(newSession);
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
 
-    wsRef.current?.send(JSON.stringify({
-      type: "session",
-      sessionId: newSession,
-      class: selectedClass,
-      subject: selectedSubject
-    }));
+        console.log("📍 Teacher Location:", lat, lng);
 
-    intervalRef.current = setInterval(() => {
-      const newSession = createSession();
-      setSessionId(newSession);
+        setAttendanceCount(0);
 
-      wsRef.current?.send(JSON.stringify({
-        type: "session",
-        sessionId: newSession,
-        class: selectedClass,
-        subject: selectedSubject
-      }));
-    }, 3000);
+        const sendSession = () => {
+          const newSession = createSession();
+          setSessionId(newSession);
+
+          wsRef.current?.send(JSON.stringify({
+            type: "session",
+            sessionId: newSession,
+            class: selectedClass,
+            subject: selectedSubject,
+            lat: lat,
+            lng: lng
+          }));
+        };
+
+        // 🔥 Send immediately
+        sendSession();
+
+        // 🔁 Keep updating QR every 3 sec
+        intervalRef.current = setInterval(sendSession, 3000);
+      },
+
+      // ❌ If location denied
+      () => {
+        alert("❌ Location permission required to start attendance");
+      }
+    );
   };
 
   // ⏹ Stop Session
