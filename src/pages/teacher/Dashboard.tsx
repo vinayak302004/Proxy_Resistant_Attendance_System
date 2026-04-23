@@ -7,10 +7,13 @@ export default function Dashboard() {
   const [attendanceCount, setAttendanceCount] = useState(0);
   const [sessionId, setSessionId] = useState("SESSION_INIT");
 
+  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedSubject, setSelectedSubject] = useState("");
+
   const wsRef = useRef<WebSocket | null>(null);
   const intervalRef = useRef<any>(null);
 
-  // ✅ Connect WebSocket once
+  // 🔌 WebSocket Connection
   useEffect(() => {
     if (localStorage.getItem("role") !== "teacher") {
       window.location.href = "/";
@@ -26,19 +29,10 @@ export default function Dashboard() {
 
     ws.onmessage = (message) => {
       const data = JSON.parse(message.data);
-      console.log("📩 Received:", data);
 
       if (data.type === "attendance") {
         setAttendanceCount((c) => c + 1);
       }
-    };
-
-    ws.onerror = (err) => {
-      console.error("WebSocket Error:", err);
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket Closed");
     };
 
     return () => {
@@ -46,7 +40,53 @@ export default function Dashboard() {
     };
   }, []);
 
-  // ✅ Start / Stop Attendance Session
+  // 🔥 Create QR Session (with expiry)
+  const createSession = () => {
+    const id = "SESSION_" + Date.now();
+    const expiry = Date.now() + 3000; // 3 sec expiry
+    return `${id}|${expiry}`;
+  };
+
+  // ▶ Start Session
+  const startSession = () => {
+
+    if (!selectedClass || !selectedSubject) {
+      alert("⚠ Please select class and subject");
+      return;
+    }
+
+    setAttendanceCount(0);
+
+    const newSession = createSession();
+    setSessionId(newSession);
+
+    wsRef.current?.send(JSON.stringify({
+      type: "session",
+      sessionId: newSession,
+      class: selectedClass,
+      subject: selectedSubject
+    }));
+
+    intervalRef.current = setInterval(() => {
+      const newSession = createSession();
+      setSessionId(newSession);
+
+      wsRef.current?.send(JSON.stringify({
+        type: "session",
+        sessionId: newSession,
+        class: selectedClass,
+        subject: selectedSubject
+      }));
+    }, 3000);
+  };
+
+  // ⏹ Stop Session
+  const stopSession = () => {
+    clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    setSessionId("SESSION_ENDED");
+  };
+
   const toggleSession = () => {
     if (!attendanceActive) {
       startSession();
@@ -57,41 +97,6 @@ export default function Dashboard() {
     setAttendanceActive(!attendanceActive);
   };
 
-  // ✅ Start QR rotation every 3 sec
-  const startSession = () => {
-    setAttendanceCount(0);
-
-    const newSession = "SESSION_" + Date.now();
-    setSessionId(newSession);
-
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: "session",
-        sessionId: newSession
-      }));
-    }
-
-    intervalRef.current = setInterval(() => {
-      const newSession = "SESSION_" + Date.now();
-      setSessionId(newSession);
-
-      if (wsRef.current?.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
-          type: "session",
-          sessionId: newSession
-        }));
-      }
-
-    }, 3000);
-  };
-
-  // ✅ Stop session
-  const stopSession = () => {
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
-    setSessionId("SESSION_ENDED");
-  };
-
   return (
     <>
       <header>
@@ -100,51 +105,69 @@ export default function Dashboard() {
 
       <div className="container">
 
+        {/* LEFT PANEL */}
         <div className="card">
-          <h2>Welcome, Mr. Smith</h2>
 
+          <h2>Welcome, Teacher</h2>
+
+          {/* 🎓 Class Selection */}
           <label>Select Class</label>
-          <select>
-            <option>Select Class</option>
-            <option>SY AIML</option>
-            <option>TY AIML</option>
+          <select
+            value={selectedClass}
+            onChange={(e) => setSelectedClass(e.target.value)}
+          >
+            <option value="">Select Class</option>
+            <option value="SY AIML">SY AIML</option>
+            <option value="TY AIML">TY AIML</option>
           </select>
 
+          {/* 📚 Subject Selection */}
           <label>Select Subject</label>
-          <select>
-            <option>Select Subject</option>
-            <option>Machine Learning</option>
-            <option>DBMS</option>
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+          >
+            <option value="">Select Subject</option>
+            <option value="Machine Learning">Machine Learning</option>
+            <option value="DBMS">DBMS</option>
           </select>
 
+          {/* ▶ Start/Stop Button */}
           <button onClick={toggleSession}>
             {attendanceActive ? "Stop Attendance" : "Start Attendance"}
           </button>
 
+          {/* 📊 Status */}
           <div className="status-box">
             <p><strong>Status:</strong> {attendanceActive ? "Active" : "Inactive"}</p>
             <p><strong>Count:</strong> {attendanceCount}</p>
           </div>
 
-          <button onClick={() => window.location.href="/reports"}>
+          {/* 📄 Report */}
+          <button onClick={() => window.location.href = "/reports"}>
             Attendance Report
           </button>
+
         </div>
 
+        {/* RIGHT PANEL */}
         <div className="card center">
-          <h2>Live Session</h2>
 
-          <p>{sessionId}</p>
+          <h2>Live Session QR</h2>
 
-          {attendanceActive && (
+          <p style={{ fontSize: "12px", wordBreak: "break-all" }}>
+            {sessionId}
+          </p>
+
+          {attendanceActive ? (
             <img
               src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${sessionId}`}
+              alt="QR Code"
             />
-          )}
-
-          {!attendanceActive && (
+          ) : (
             <p style={{ color: "gray" }}>Session not active</p>
           )}
+
         </div>
 
       </div>
