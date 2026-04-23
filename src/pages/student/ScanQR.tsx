@@ -5,14 +5,13 @@ export default function ScanQR() {
 
   const [started, setStarted] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const scannedRef = useRef(false); // 🔥 prevent multiple scans
+  const scannedRef = useRef(false);
 
   const loadScanner = async () => {
     try {
       setStarted(true);
       scannedRef.current = false;
 
-      // ask permission
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach(track => track.stop());
 
@@ -21,64 +20,51 @@ export default function ScanQR() {
 
       const cameras = await Html5Qrcode.getCameras();
 
-      if (!cameras || cameras.length === 0) {
+      if (!cameras.length) {
         alert("❌ No camera found");
         setStarted(false);
         return;
       }
 
-      // ✅ back camera
-      const backCamera = cameras.find((cam: any) =>
-        cam.label.toLowerCase().includes("back")
-      );
-
-      const cameraId = backCamera ? backCamera.id : cameras[0].id;
+      const cameraId = cameras[0].id;
 
       await qrScanner.start(
-        cameraId,
-        { fps: 10, qrbox: 250 },
+  { facingMode: "environment" }, // 🔥 FORCE BACK CAMERA
+  { fps: 10, qrbox: 250 },
 
-        async (decodedText: string) => {
+  async (decodedText: string) => {
+    if (scannedRef.current) return;
+    scannedRef.current = true;
 
-          // 🔥 STOP MULTIPLE TRIGGERS
-          if (scannedRef.current) return;
-          scannedRef.current = true;
+    const [sessionId, expiry] = decodedText.split("|");
 
-          // ✅ show result
-          const resultEl = document.getElementById("qr-result");
-          if (resultEl) {
-            resultEl.innerText = `✅ Attendance Marked: ${decodedText}`;
-          }
+    if (Date.now() > Number(expiry)) {
+      alert("❌ QR Expired!");
+      scannedRef.current = false;
+      return;
+    }
 
-          // ✅ send attendance
-          const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+    document.getElementById("qr-result")!.innerText =
+      "✅ Attendance Marked";
 
-          ws.onopen = () => {
-            ws.send(JSON.stringify({
-              type: "attendance",
-              sessionId: decodedText
-            }));
-          };
+    const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
 
-          try {
-            // ✅ STOP CAMERA PROPERLY
-            await qrScanner.stop();
-            await qrScanner.clear();
+    ws.onopen = () => {
+      ws.send(JSON.stringify({
+        type: "attendance",
+        sessionId: decodedText
+      }));
+    };
 
-            // ✅ REMOVE VIDEO UI
-            const reader = document.getElementById("qr-reader");
-            if (reader) reader.innerHTML = "";
+    await qrScanner.stop();
+    await qrScanner.clear();
 
-          } catch (err) {
-            console.error("Stop error:", err);
-          }
+    document.getElementById("qr-reader")!.innerHTML = "";
 
-          // ✅ show button again
-          setStarted(false);
-        },
-
-        () => {}
-      );
+    setStarted(false);
+  },
+  () => {}
+);
 
     } catch (err) {
       console.error(err);
@@ -89,38 +75,17 @@ export default function ScanQR() {
 
   return (
     <div style={{ textAlign: "center", marginTop: "40px" }}>
-      <h2>Scan QR Code to Mark Attendance</h2>
+      <h2>Scan QR Code</h2>
 
-      {/* ✅ Button comes back after scan */}
       {!started && (
-        <button
-          onClick={loadScanner}
-          style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            marginBottom: "15px"
-          }}
-        >
+        <button onClick={loadScanner}>
           ▶ Start Scanner
         </button>
       )}
 
-      <div
-        id="qr-reader"
-        style={{
-          width: "100%",
-          maxWidth: "350px",
-          margin: "auto"
-        }}
-      ></div>
+      <div id="qr-reader" style={{ maxWidth: "350px", margin: "auto" }}></div>
 
-      <div
-        id="qr-result"
-        style={{
-          marginTop: "15px",
-          fontWeight: "bold"
-        }}
-      ></div>
+      <div id="qr-result" style={{ marginTop: "10px" }}></div>
     </div>
   );
 }

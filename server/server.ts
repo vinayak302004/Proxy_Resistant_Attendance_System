@@ -6,24 +6,28 @@ const wss = new WebSocketServer({
 });
 
 let clients: WebSocket[] = [];
+
+// 🔥 Store active session + expiry
 let currentSession: string | null = null;
+let sessionExpiry: number = 0;
 
 wss.on("connection", (ws: WebSocket) => {
   console.log("✅ Client connected");
-  clients.push(ws);
 
+  clients.push(ws);
   console.log("👥 Total clients:", clients.length);
 
   ws.on("message", (message: WebSocket.RawData) => {
     try {
-      const data = JSON.parse(message.toString()) as {
-        type: string;
-        sessionId?: string;
-      };
+      const data = JSON.parse(message.toString());
 
-      // 🔵 Teacher session update
+      // 🟦 Teacher sets session
       if (data.type === "session" && data.sessionId) {
         currentSession = data.sessionId;
+
+        // 🔥 expire after 3 sec
+        sessionExpiry = Date.now() + 3000;
+
         console.log("🟦 New Session:", currentSession);
       }
 
@@ -31,13 +35,19 @@ wss.on("connection", (ws: WebSocket) => {
       if (data.type === "attendance" && data.sessionId) {
         console.log("📥 Attendance:", data.sessionId);
 
-        // ❌ reject expired QR
+        // ❌ Wrong session
         if (data.sessionId !== currentSession) {
-          console.log("❌ Expired QR");
+          console.log("❌ Invalid QR (session mismatch)");
           return;
         }
 
-        console.log("📡 Broadcasting...");
+        // ❌ Expired QR
+        if (Date.now() > sessionExpiry) {
+          console.log("❌ QR expired (time over)");
+          return;
+        }
+
+        console.log("📡 Broadcasting attendance...");
 
         clients.forEach((client) => {
           if (client.readyState === WebSocket.OPEN) {
