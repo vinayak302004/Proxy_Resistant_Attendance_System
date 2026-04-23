@@ -2,7 +2,6 @@ import { useState, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
 export default function ScanQR() {
-
   const [started, setStarted] = useState(false);
   const [success, setSuccess] = useState(false);
   const [sessionText, setSessionText] = useState("");
@@ -18,11 +17,11 @@ export default function ScanQR() {
       scannerRef.current = null;
     }
 
-    // 🔥 Remove scanner UI
+    // Remove scanner UI
     const reader = document.getElementById("qr-reader");
     if (reader) reader.innerHTML = "";
 
-    // 🔥 Stop all camera tracks (important for mobile)
+    // Stop all camera tracks (important for mobile)
     document.querySelectorAll("video").forEach((video: any) => {
       if (video.srcObject) {
         const stream = video.srcObject as MediaStream;
@@ -38,7 +37,7 @@ export default function ScanQR() {
       setSuccess(false);
       scannedRef.current = false;
 
-      // 🔐 Request camera permission first
+      // Request camera permission first
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       stream.getTracks().forEach(track => track.stop());
 
@@ -50,13 +49,12 @@ export default function ScanQR() {
         { fps: 10, qrbox: 250 },
 
         async (decodedText: string) => {
-
           if (scannedRef.current) return;
           scannedRef.current = true;
 
           console.log("✅ SCANNED:", decodedText);
 
-          // ✅ HANDLE BOTH QR FORMATS
+          // Handle QR formats
           let sessionId = decodedText;
           let expiry: number | null = null;
 
@@ -72,9 +70,12 @@ export default function ScanQR() {
             }
           }
 
-          // 🛑 STOP EVERYTHING
-          await stopScanner();
+          // ✅ SHOW SUCCESS FIRST (IMPORTANT FIX)
+          setSessionText(sessionId);
+          setSuccess(true);
 
+          // 🛑 STOP SCANNER AFTER UI UPDATE
+          await stopScanner();
           setStarted(false);
 
           // 📡 SEND TO SERVER
@@ -85,12 +86,6 @@ export default function ScanQR() {
               sessionId: sessionId
             }));
           };
-
-          // ✅ SHOW SUCCESS
-          setSessionText(sessionId);
-          setTimeout(() => {
-            setSuccess(true);
-          }, 100);
         },
 
         () => {}
@@ -107,8 +102,8 @@ export default function ScanQR() {
     <div style={{ textAlign: "center", marginTop: "40px" }}>
       <h2>Scan QR Code</h2>
 
-      {/* ✅ SUCCESS UI */}
-      {success && (
+      {/* ✅ SUCCESS UI (priority) */}
+      {success ? (
         <div style={{ marginTop: "30px" }}>
           <h1 style={{ fontSize: "60px", color: "green" }}>✅</h1>
           <h2>Attendance Marked</h2>
@@ -124,17 +119,13 @@ export default function ScanQR() {
             🔁 Scan Again
           </button>
         </div>
-      )}
-
-      {/* ▶ START BUTTON */}
-      {!started && !success && (
+      ) : !started ? (
+        /* ▶ START BUTTON */
         <button onClick={loadScanner}>
           ▶ Start Scanner
         </button>
-      )}
-
-      {/* 📷 SCANNER */}
-      {started && (
+      ) : (
+        /* 📷 SCANNER */
         <div
           id="qr-reader"
           style={{ maxWidth: "350px", margin: "auto" }}
