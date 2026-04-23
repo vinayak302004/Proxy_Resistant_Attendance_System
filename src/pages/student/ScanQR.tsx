@@ -17,11 +17,9 @@ export default function ScanQR() {
       scannerRef.current = null;
     }
 
-    // Remove scanner UI
     const reader = document.getElementById("qr-reader");
     if (reader) reader.innerHTML = "";
 
-    // Stop all camera tracks (important for mobile)
     document.querySelectorAll("video").forEach((video: any) => {
       if (video.srcObject) {
         const stream = video.srcObject as MediaStream;
@@ -54,7 +52,6 @@ export default function ScanQR() {
 
           console.log("✅ SCANNED:", decodedText);
 
-          // Handle QR formats
           let sessionId = decodedText;
           let expiry: number | null = null;
 
@@ -70,22 +67,46 @@ export default function ScanQR() {
             }
           }
 
-          // ✅ SHOW SUCCESS FIRST (IMPORTANT FIX)
+          // ✅ SHOW SUCCESS FIRST
           setSessionText(sessionId);
           setSuccess(true);
 
-          // 🛑 STOP SCANNER AFTER UI UPDATE
+          // 🛑 STOP SCANNER
           await stopScanner();
           setStarted(false);
 
-          // 📡 SEND TO SERVER
-          const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
-          ws.onopen = () => {
-            ws.send(JSON.stringify({
-              type: "attendance",
-              sessionId: sessionId
-            }));
-          };
+          // 📍 ✅ ADD GPS HERE (SAFE PLACE)
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+
+              console.log("📍 Student Location:", lat, lng);
+
+              // 📡 SEND TO SERVER WITH GPS
+              const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+              ws.onopen = () => {
+                ws.send(JSON.stringify({
+                  type: "attendance",
+                  sessionId: sessionId,
+                  lat: lat,
+                  lng: lng
+                }));
+              };
+            },
+            (err) => {
+              console.error("❌ Location error:", err);
+
+              // fallback → still send attendance (optional)
+              const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
+              ws.onopen = () => {
+                ws.send(JSON.stringify({
+                  type: "attendance",
+                  sessionId: sessionId
+                }));
+              };
+            }
+          );
         },
 
         () => {}
@@ -102,7 +123,6 @@ export default function ScanQR() {
     <div style={{ textAlign: "center", marginTop: "40px" }}>
       <h2>Scan QR Code</h2>
 
-      {/* ✅ SUCCESS UI (priority) */}
       {success ? (
         <div style={{ marginTop: "30px" }}>
           <h1 style={{ fontSize: "60px", color: "green" }}>✅</h1>
@@ -120,12 +140,10 @@ export default function ScanQR() {
           </button>
         </div>
       ) : !started ? (
-        /* ▶ START BUTTON */
         <button onClick={loadScanner}>
           ▶ Start Scanner
         </button>
       ) : (
-        /* 📷 SCANNER */
         <div
           id="qr-reader"
           style={{ maxWidth: "350px", margin: "auto" }}
