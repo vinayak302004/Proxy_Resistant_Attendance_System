@@ -1,7 +1,12 @@
 import { useState, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 
+import { useNavigate } from "react-router-dom";
+import SelfieCapture from "../../components/SelfieCapture";
+
 export default function ScanQR() {
+  const navigate = useNavigate();
+  const [showSelfie, setShowSelfie] = useState(false);
   const [started, setStarted] = useState(false);
   const [success, setSuccess] = useState(false);
   const [sessionText, setSessionText] = useState("");
@@ -69,11 +74,11 @@ export default function ScanQR() {
 
           // ✅ SHOW SUCCESS FIRST
           setSessionText(sessionId);
-          setSuccess(true);
-
-          // 🛑 STOP SCANNER
           await stopScanner();
+
           setStarted(false);
+
+          setShowSelfie(true);
 
           // 📍 ✅ ADD GPS HERE (SAFE PLACE)
           navigator.geolocation.getCurrentPosition(
@@ -121,34 +126,63 @@ export default function ScanQR() {
 
   return (
     <div style={{ textAlign: "center", marginTop: "40px" }}>
+
       <h2>Scan QR Code</h2>
 
-      {success ? (
-        <div style={{ marginTop: "30px" }}>
-          <h1 style={{ fontSize: "60px", color: "green" }}>✅</h1>
-          <h2>Attendance Marked</h2>
-          <p style={{ fontSize: "14px" }}>{sessionText}</p>
+      {showSelfie ? (
 
-          <button
-            style={{ marginTop: "20px" }}
-            onClick={() => {
-              setSuccess(false);
-              setStarted(false);
-            }}
-          >
-            🔁 Scan Again
-          </button>
+        <SelfieCapture
+          autoCapture={true}
+
+          onVerified={(name) => {
+
+            alert("✅ Welcome " + name);
+
+            setShowSelfie(false);
+
+            navigate("/profile");
+
+          }}
+
+          onFailed={() => {
+
+            alert("❌ Face Verification Failed");
+
+            setShowSelfie(false);
+
+            navigate("/profile");
+
+          }}
+        />
+
+      ) : success ? (
+
+        <div>
+
+          <h2>QR Verified</h2>
+
+          <p>Opening Face Verification...</p>
+
         </div>
+
       ) : !started ? (
+
         <button onClick={loadScanner}>
           ▶ Start Scanner
         </button>
+
       ) : (
+
         <div
           id="qr-reader"
-          style={{ maxWidth: "350px", margin: "auto" }}
+          style={{
+            maxWidth: "350px",
+            margin: "auto"
+          }}
         />
+
       )}
+
     </div>
   );
 }
