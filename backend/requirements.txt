@@ -1,0 +1,8 @@
+opencv-python
+face_recognition
+numpy
+pandas
+imutils
+flask
+flask-cors
+pillow
