@@ -4,7 +4,6 @@ import "../../styles/dashboard.css";
 export default function Dashboard() {
 
   const [attendanceActive, setAttendanceActive] = useState(false);
-  const [attendanceCount, setAttendanceCount] = useState(0);
   const [sessionId, setSessionId] = useState("SESSION_INIT");
 
   const [selectedClass, setSelectedClass] = useState("");
@@ -27,13 +26,6 @@ export default function Dashboard() {
       console.log("WebSocket Connected ✅");
     };
 
-    ws.onmessage = (message) => {
-      const data = JSON.parse(message.data);
-
-      if (data.type === "attendance") {
-        setAttendanceCount((c) => c + 1);
-      }
-    };
 
     return () => {
       ws.close();
@@ -63,8 +55,6 @@ export default function Dashboard() {
         const lng = pos.coords.longitude;
 
         console.log("📍 Teacher Location:", lat, lng);
-
-        setAttendanceCount(0);
 
         const sendSession = () => {
           const newSession = createSession();
@@ -154,7 +144,6 @@ export default function Dashboard() {
           {/* 📊 Status */}
           <div className="status-box">
             <p><strong>Status:</strong> {attendanceActive ? "Active" : "Inactive"}</p>
-            <p><strong>Count:</strong> {attendanceCount}</p>
           </div>
 
           {/* 📄 Report */}
