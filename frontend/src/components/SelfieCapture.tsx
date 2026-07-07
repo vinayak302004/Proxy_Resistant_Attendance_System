@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from "react";
 type Props = {
   onVerified: (name: string) => void;
   onFailed: () => void;
+  autoCapture?: boolean;
 };
 
 export default function SelfieCapture({
   onVerified,
   onFailed,
+  autoCapture = true,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,6 +25,16 @@ export default function SelfieCapture({
     return () => {
       stopCamera();
     };
+  }, []);
+
+  useEffect(() => {
+  if (!autoCapture) return;
+
+  const timer = setTimeout(() => {
+    capture();
+  }, 2500);
+
+  return () => clearTimeout(timer);
   }, []);
 
   const startCamera = async () => {
@@ -138,12 +150,22 @@ export default function SelfieCapture({
       <br />
       <br />
 
-      <button
-        onClick={capture}
-        disabled={loading}
-      >
-        {loading ? "Verifying..." : "Capture Selfie"}
-      </button>
+      {!autoCapture && (
+        <button
+          onClick={capture}
+          disabled={loading}
+        >
+          {loading ? "Verifying..." : "Capture Selfie"}
+        </button>
+      )}
+
+      {autoCapture && (
+        <p>
+          Looking at camera...
+          <br />
+          Verifying Face...
+        </p>
+      )}
 
       <canvas
         ref={canvasRef}
