@@ -70,7 +70,6 @@ export default function Profile() {
 
         <div className="card-header">
           <span>Student Profile</span>
-          <div>🔔 ⚙ ⬜</div>
         </div>
 
         <div className="profile-banner">
@@ -99,18 +98,18 @@ export default function Profile() {
 
         </div>
 
+        <div className="section center">
+          <button className="btn" onClick={openScanner}>
+            📷 Scan QR for Attendance
+          </button>
+        </div>
+        
         <div className="section">
           <h4>Attendance History</h4>
 
           <div className="row">
             <span>Attendance Module Coming Soon</span>
           </div>
-        </div>
-
-        <div className="section center">
-          <button className="btn" onClick={openScanner}>
-            📷 Scan QR for Attendance
-          </button>
         </div>
 
         <div className="section">
