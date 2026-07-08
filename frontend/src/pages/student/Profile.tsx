@@ -81,21 +81,13 @@ export default function Profile() {
           />
 
           <div className="profile-info">
-
             <h3>{student.full_name}</h3>
-
             <p><b>PRN:</b> {student.prn}</p>
-
             <p><b>Email:</b> {student.email}</p>
-
             <p><b>Year:</b> {student.year}</p>
-
             <p><b>Branch:</b> {student.branch}</p>
-
             <p><b>Division:</b> {student.division}</p>
-
           </div>
-
         </div>
 
         <div className="section center">
@@ -103,7 +95,7 @@ export default function Profile() {
             📷 Scan QR for Attendance
           </button>
         </div>
-        
+
         <div className="section">
           <h4>Attendance History</h4>
 
