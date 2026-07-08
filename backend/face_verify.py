@@ -3,12 +3,14 @@ import pickle
 import numpy as np
 import face_recognition
 
+from database import get_db_connection
+
 # Load encodings once
 with open("encodings.pickle", "rb") as f:
     data = pickle.load(f)
 
 
-def verify_face(image):
+def verify_face(image, firebase_uid):
 
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -19,6 +21,28 @@ def verify_face(image):
             "verified": False,
             "message": "No face detected"
         }
+
+    # Get expected PRN from database
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+
+    cursor.execute(
+        "SELECT prn FROM students WHERE firebase_uid = %s",
+        (firebase_uid,)
+    )
+
+    student = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if not student:
+        return {
+            "verified": False,
+            "message": "Student not found"
+        }
+
+    expected_prn = student["prn"]
 
     encodings = face_recognition.face_encodings(rgb, boxes)
 
@@ -41,9 +65,19 @@ def verify_face(image):
 
         if matches[best_match]:
 
+            recognized_prn = data["names"][best_match]
+
+            if recognized_prn == expected_prn:
+
+                return {
+                    "verified": True,
+                    "name": recognized_prn,
+                    "message": "Face Verified Successfully"
+                }
+
             return {
-                "verified": True,
-                "name": data["names"][best_match]
+                "verified": False,
+                "message": "Face belongs to another student"
             }
 
     return {
