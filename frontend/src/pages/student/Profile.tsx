@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "../../styles/profile.css";
+import { API_URL } from "../../config"; // Adjust path if needed
 
 interface Student {
   full_name: string;
@@ -25,14 +26,19 @@ export default function Profile() {
       return;
     }
 
-    fetch(`http://localhost:5000/student/profile/${uid}`)
-      .then(res => res.json())
-      .then(data => {
+    fetch(`${API_URL}/student/profile/${uid}`)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error("Student not found");
+        }
+        return res.json();
+      })
+      .then((data) => {
         setStudent(data);
         setLoading(false);
       })
-      .catch(err => {
-        console.log(err);
+      .catch((err) => {
+        console.error(err);
         setLoading(false);
       });
 
@@ -109,6 +115,7 @@ export default function Profile() {
 
         <div className="section">
           <h4>Update Profile Photo</h4>
+
           <button className="btn">
             Upload New Photo
           </button>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { API_URL } from "../../src/config";
 
 type Props = {
   onVerified: (name: string) => void;
@@ -16,8 +17,6 @@ export default function SelfieCapture({
 
   const [loading, setLoading] = useState(false);
 
-  // ✅ Dynamic backend URL
-  const backendUrl = `http://${window.location.hostname}:5000`;
 
   useEffect(() => {
     startCamera();
@@ -28,13 +27,13 @@ export default function SelfieCapture({
   }, []);
 
   useEffect(() => {
-  if (!autoCapture) return;
+    if (!autoCapture) return;
 
-  const timer = setTimeout(() => {
-    capture();
-  }, 2500);
+    const timer = setTimeout(() => {
+      capture();
+    }, 2500);
 
-  return () => clearTimeout(timer);
+    return () => clearTimeout(timer);
   }, []);
 
   const startCamera = async () => {
@@ -90,22 +89,34 @@ export default function SelfieCapture({
         return;
       }
 
-      const formData = new FormData();
-      formData.append("image", blob, "selfie.jpg");
-
       try {
-        console.log("Sending to:", `${backendUrl}/verify-face`);
 
-        const response = await fetch(`${backendUrl}/verify-face`, {
+        // Get logged in student's UID
+        const uid = localStorage.getItem("uid");
+
+        if (!uid) {
+          alert("User not logged in.");
+          setLoading(false);
+          return;
+        }
+
+        const formData = new FormData();
+
+        // Send image
+        formData.append("image", blob, "selfie.jpg");
+
+        // Send Firebase UID
+        formData.append("uid", uid);
+
+        console.log("Backend:", `${API_URL}/verify-face`);
+        console.log("UID:", uid);
+
+        const response = await fetch(`${API_URL}/verify-face`, {
           method: "POST",
           body: formData,
         });
 
         console.log("Status:", response.status);
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
 
         const result = await response.json();
 
@@ -118,17 +129,20 @@ export default function SelfieCapture({
           alert(result.message);
           onFailed();
         }
+
       } catch (err: any) {
         console.error(err);
+
         alert(
           "Cannot connect to Flask Server.\n\n" +
-          "Backend URL:\n" +
-          `${backendUrl}\n\n` +
           err.message
         );
+
+        onFailed();
       }
 
       setLoading(false);
+
     }, "image/jpeg");
   };
 
@@ -151,10 +165,7 @@ export default function SelfieCapture({
       <br />
 
       {!autoCapture && (
-        <button
-          onClick={capture}
-          disabled={loading}
-        >
+        <button onClick={capture} disabled={loading}>
           {loading ? "Verifying..." : "Capture Selfie"}
         </button>
       )}
