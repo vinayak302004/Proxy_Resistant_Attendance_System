@@ -46,8 +46,14 @@ export default function Login() {
 
       localStorage.setItem("role", role);
 
-      if (role === "teacher") window.location.href = "/teacher";
-      else window.location.href = "/profile";
+      // Save Firebase details
+      localStorage.setItem("uid", cred.user.uid);
+      localStorage.setItem("email", cred.user.email || "");
+
+      if (role === "teacher")
+          window.location.href = "/teacher";
+      else
+          window.location.href = "/profile";
 
     } catch (err: any) {
       setMsg(err.message);
