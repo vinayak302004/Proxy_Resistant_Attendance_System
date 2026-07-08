@@ -70,7 +70,6 @@ export default function Profile() {
 
         <div className="card-header">
           <span>Student Profile</span>
-          <div>🔔 ⚙ ⬜</div>
         </div>
 
         <div className="profile-banner">
@@ -82,21 +81,19 @@ export default function Profile() {
           />
 
           <div className="profile-info">
-
             <h3>{student.full_name}</h3>
-
             <p><b>PRN:</b> {student.prn}</p>
-
             <p><b>Email:</b> {student.email}</p>
-
             <p><b>Year:</b> {student.year}</p>
-
             <p><b>Branch:</b> {student.branch}</p>
-
             <p><b>Division:</b> {student.division}</p>
-
           </div>
+        </div>
 
+        <div className="section center">
+          <button className="btn" onClick={openScanner}>
+            📷 Scan QR for Attendance
+          </button>
         </div>
 
         <div className="section">
@@ -105,12 +102,6 @@ export default function Profile() {
           <div className="row">
             <span>Attendance Module Coming Soon</span>
           </div>
-        </div>
-
-        <div className="section center">
-          <button className="btn" onClick={openScanner}>
-            📷 Scan QR for Attendance
-          </button>
         </div>
 
         <div className="section">
