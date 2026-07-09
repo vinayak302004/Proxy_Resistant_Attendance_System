@@ -97,11 +97,12 @@ export default function Profile() {
         </div>
 
         <div className="section">
-          <h4>Attendance History</h4>
-
-          <div className="row">
-            <span>Attendance Module Coming Soon</span>
-          </div>
+          <button
+              className="btn"
+              onClick={() => window.location.href="/student/attendance"}
+          >
+              📊 View Attendance
+          </button>
         </div>
 
         <div className="section">

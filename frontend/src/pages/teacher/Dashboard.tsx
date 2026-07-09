@@ -68,6 +68,7 @@ const departmentSubjects: {
 };
 
 export default function Dashboard() {
+  const [teacher, setTeacher] = useState<any>(null);
   const [attendanceActive, setAttendanceActive] = useState(false);
   const [sessionId, setSessionId] = useState("SESSION_INIT");
 
@@ -83,6 +84,18 @@ export default function Dashboard() {
     if (localStorage.getItem("role") !== "teacher") {
       window.location.href = "/";
       return;
+    }
+    const uid = localStorage.getItem("uid");
+
+    if (uid) {
+
+        fetch(`http://${window.location.hostname}:5000/teacher/profile/${uid}`)
+            .then(res => res.json())
+            .then(data => {
+                setTeacher(data);
+            })
+            .catch(err => console.log(err));
+
     }
 
     const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
@@ -123,14 +136,24 @@ export default function Dashboard() {
           setSessionId(newSession);
 
           if (wsRef.current?.readyState === WebSocket.OPEN) {
+            const teacherUid = localStorage.getItem("uid");
+
             wsRef.current.send(
               JSON.stringify({
                 type: "session",
+
                 sessionId: newSession,
+
+                teacher_uid: teacherUid,
+
                 department: selectedDepartment,
+
                 year: selectedYear,
+
                 subject: selectedSubject,
+
                 lat,
+
                 lng,
               })
             );
@@ -175,7 +198,15 @@ export default function Dashboard() {
       <div className="container">
         {/* LEFT PANEL */}
         <div className="card">
-          <h2>Welcome, Teacher</h2>
+          <h2>
+              Welcome,
+              <br />
+              {teacher?.full_name || "Teacher"}
+          </h2>
+
+          <p>{teacher?.designation}</p>
+
+          <p>{teacher?.department}</p>
 
           {/* Class */}
           <label>Select Department</label>
@@ -240,8 +271,10 @@ export default function Dashboard() {
           </div>
 
           {/* Reports */}
-          <button onClick={() => (window.location.href = "/reports")}>
-            Attendance Report
+          <button
+              onClick={() => window.location.href="/teacher/attendance"}
+          >
+              View Attendance
           </button>
         </div>
 

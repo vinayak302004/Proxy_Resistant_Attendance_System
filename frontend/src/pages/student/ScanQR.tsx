@@ -136,7 +136,7 @@ export default function ScanQR() {
 
           onVerified={(name) => {
 
-            alert("✅ Welcome " + name);
+            alert("✅ Attendance Marked ");
 
             setShowSelfie(false);
 
