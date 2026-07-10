@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import "../../styles/dashboard.css";
+import { useNavigate } from "react-router-dom";
 
 const departmentSubjects: {
   [department: string]: {
@@ -77,6 +78,8 @@ export default function Dashboard() {
   const [selectedSubject, setSelectedSubject] = useState("");
 
   const intervalRef = useRef<any>(null);
+
+  const navigate = useNavigate();
 
   // Load TEacher Profile
   useEffect(() => {
@@ -180,7 +183,7 @@ const startSession = () => {
           } catch (err) {
               console.log(err);
           }
-      }, 5000);
+      }, 8000);
 
         setAttendanceActive(true);
 
@@ -305,7 +308,7 @@ const stopSession = async () => {
 
           {/* Reports */}
           <button
-              onClick={() => window.location.href="/teacher/attendance"}
+              onClick={() => navigate("/teacher/attendance")}
           >
               View Attendance
           </button>

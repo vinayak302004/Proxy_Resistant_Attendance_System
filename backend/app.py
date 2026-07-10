@@ -392,6 +392,109 @@ def attendance_stop():
         "success": True
     })
 
+@app.route("/attendance/all", methods=["GET"])
+def attendance_all():
+
+    teacher_uid = request.args.get("teacher_uid")
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                prn,
+                student_name,
+                department,
+                year,
+                subject,
+                attendance_date,
+                attendance_time,
+                status
+            FROM attendance
+            WHERE teacher_uid=%s
+            ORDER BY attendance_date DESC,
+                     attendance_time DESC
+        """, (teacher_uid,))
+
+        rows = cursor.fetchall()
+
+
+        # Convert MySQL date/time objects to JSON format
+        for row in rows:
+
+            if row["attendance_date"]:
+                row["attendance_date"] = str(row["attendance_date"])
+
+            if row["attendance_time"]:
+                row["attendance_time"] = str(row["attendance_time"])
+
+
+        cursor.close()
+        conn.close()
+
+
+        return jsonify(rows)
+
+
+    except Exception as e:
+
+        print("ATTENDANCE ALL ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }),500
+    
+
+@app.route("/teacher/attendance", methods=["GET"])
+def teacher_attendance():
+
+    department = request.args.get("department")
+    year = request.args.get("year")
+    subject = request.args.get("subject")
+    date = request.args.get("date")
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                prn,
+                student_name,
+                attendance_time,
+                status
+            FROM attendance
+            WHERE department=%s
+              AND year=%s
+              AND subject=%s
+              AND attendance_date=%s
+            ORDER BY student_name
+        """, (
+            department,
+            year,
+            subject,
+            date
+        ))
+
+        students = cursor.fetchall()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "students": students
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 # -------------------------------------
 
