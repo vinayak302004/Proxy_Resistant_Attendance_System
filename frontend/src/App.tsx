@@ -5,6 +5,7 @@ import Dashboard from "./pages/teacher/Dashboard";
 import Reports from "./pages/teacher/Reports";
 import ScanQR from "./pages/student/ScanQR";
 import Profile from "./pages/student/Profile";
+import TeacherAttendance from "./pages/teacher/TeacherAttendance";
 
 /* 🔐 Route Protection */
 const PrivateRoute = ({ children, role }: any) => {
@@ -24,12 +25,21 @@ function App() {
         {/* LOGIN */}
         <Route path="/" element={<Login />} />
 
-        {/* TEACHER ROUTES */}
+        {/* Teacher */}
         <Route
           path="/teacher"
           element={
             <PrivateRoute role="teacher">
               <Dashboard />
+            </PrivateRoute>
+          }
+        />
+
+        <Route
+          path="/teacher/attendance"
+          element={
+            <PrivateRoute role="teacher">
+              <TeacherAttendance />
             </PrivateRoute>
           }
         />
@@ -43,7 +53,7 @@ function App() {
           }
         />
 
-        {/* STUDENT ROUTES */}
+        {/* Student */}
         <Route
           path="/profile"
           element={
@@ -62,7 +72,6 @@ function App() {
           }
         />
 
-        {/* DEFAULT FALLBACK */}
         <Route path="*" element={<Navigate to="/" />} />
 
       </Routes>
