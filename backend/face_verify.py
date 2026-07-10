@@ -10,7 +10,7 @@ with open("encodings.pickle", "rb") as f:
     data = pickle.load(f)
 
 
-def verify_face(image, firebase_uid):
+def verify_face(image, firebase_uid, session_id):
 
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -69,10 +69,17 @@ def verify_face(image, firebase_uid):
 
             if recognized_prn == expected_prn:
 
+                from attendance_session import get_session
+
+                session = get_session()
+
                 return {
                     "verified": True,
                     "name": recognized_prn,
-                    "message": "Face Verified Successfully"
+                    "teacher_uid": session["teacher_uid"],
+                    "department": session["department"],
+                    "year": session["year"],
+                    "subject": session["subject"]
                 }
 
             return {

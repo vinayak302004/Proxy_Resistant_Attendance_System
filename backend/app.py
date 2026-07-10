@@ -8,6 +8,13 @@ from datetime import datetime
 from database import get_db_connection
 from face_verify import verify_face
 
+from attendance_session import (
+    start_session,
+    stop_session,
+    get_session,
+    refresh_session
+)
+
 app = Flask(__name__)
 CORS(app)
 
@@ -134,7 +141,13 @@ def verify():
     image = np.frombuffer(file.read(), np.uint8)
     image = cv2.imdecode(image, cv2.IMREAD_COLOR)
 
-    result = verify_face(image, firebase_uid)
+    session_id = request.form.get("session_id")
+
+    result = verify_face(
+        image,
+        firebase_uid,
+        session_id
+    )
 
     return jsonify(result)
 
@@ -312,6 +325,74 @@ def mark_attendance():
 
         }),500
     
+
+@app.route("/attendance/start", methods=["POST"])
+def attendance_start():
+
+    data = request.json
+
+    session = start_session(
+        data["teacher_uid"],
+        data["department"],
+        data["year"],
+        data["subject"],
+        data["lat"],
+        data["lng"]
+    )
+
+    return jsonify({
+        "success": True,
+        "session_id": session["session_id"]
+    })
+
+@app.route("/attendance/verify", methods=["POST"])
+def attendance_verify():
+
+    session = get_session()
+
+    if session is None:
+        return jsonify({
+            "success": False,
+            "message": "Attendance session not active"
+        })
+
+    data = request.json
+
+    if data["session_id"] != session["session_id"]:
+        return jsonify({
+            "success": False,
+            "message": "Invalid QR Code"
+        })
+
+    return jsonify({
+        "success": True
+    })
+
+@app.route("/attendance/refresh", methods=["POST"])
+def attendance_refresh():
+
+    session = refresh_session()
+
+    if session is None:
+        return jsonify({
+            "success": False
+        })
+
+    return jsonify({
+        "success": True,
+        "session_id": session["session_id"]
+    })
+
+@app.route("/attendance/stop", methods=["POST"])
+def attendance_stop():
+
+    stop_session()
+
+    return jsonify({
+        "success": True
+    })
+
+
 # -------------------------------------
 
 if __name__ == "__main__":

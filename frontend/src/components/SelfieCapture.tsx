@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { API_URL } from "../../src/config";
 
 type Props = {
+  sessionId: string;
   onVerified: (name: string) => void;
   onFailed: () => void;
   autoCapture?: boolean;
 };
 
 export default function SelfieCapture({
+  sessionId,
   onVerified,
   onFailed,
   autoCapture = true,
@@ -108,6 +110,8 @@ export default function SelfieCapture({
         // Send Firebase UID
         formData.append("uid", uid);
 
+        formData.append("session_id", sessionId);
+
         console.log("Backend:", `${API_URL}/verify-face`);
         console.log("UID:", uid);
 
@@ -123,9 +127,35 @@ export default function SelfieCapture({
         console.log(result);
 
         if (result.verified) {
-          stopCamera();
-          onVerified(result.name);
-        } else {
+
+            const uid = localStorage.getItem("uid");
+
+            const markResponse = await fetch(`${API_URL}/attendance/mark`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    student_uid: uid,
+                    teacher_uid: result.teacher_uid,
+                    department: result.department,
+                    year: result.year,
+                    subject: result.subject,
+                }),
+            });
+
+            const markResult = await markResponse.json();
+
+            if (!markResult.success) {
+                alert(markResult.message);
+                onFailed();
+                return;
+            }
+
+            stopCamera();
+            onVerified(result.name);
+        }
+        else {
           alert(result.message);
           onFailed();
         }

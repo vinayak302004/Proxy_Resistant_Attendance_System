@@ -76,10 +76,9 @@ export default function Dashboard() {
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
 
-  const wsRef = useRef<WebSocket | null>(null);
   const intervalRef = useRef<any>(null);
 
-  // WebSocket Connection
+  // Load TEacher Profile
   useEffect(() => {
     if (localStorage.getItem("role") !== "teacher") {
       window.location.href = "/";
@@ -97,89 +96,123 @@ export default function Dashboard() {
             .catch(err => console.log(err));
 
     }
-
-    const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
-    wsRef.current = ws;
-
-    ws.onopen = () => {
-      console.log("✅ WebSocket Connected");
-    };
-
     return () => {
-      ws.close();
-    };
+  if (intervalRef.current) {
+    clearInterval(intervalRef.current);
+  }
+};
   }, []);
 
-  // Create QR Session
-  const createSession = () => {
-    const id = "SESSION_" + Date.now();
-    const expiry = Date.now() + 3000;
-    return `${id}|${expiry}`;
-  };
-
   // Start Attendance
-  const startSession = () => {
-    if (!selectedDepartment || !selectedYear || !selectedSubject) {
-      alert("⚠ Please select department, year and subject");
-      return;
-    }
+const startSession = () => {
+  if (!selectedDepartment || !selectedYear || !selectedSubject) {
+    alert("⚠ Please select department, year and subject");
+    return;
+  }
 
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
 
-        console.log("📍 Teacher Location:", lat, lng);
+      try {
+        const teacherUid = localStorage.getItem("uid");
 
-        const sendSession = () => {
-          const newSession = createSession();
-          setSessionId(newSession);
-
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            const teacherUid = localStorage.getItem("uid");
-
-            wsRef.current.send(
-              JSON.stringify({
-                type: "session",
-
-                sessionId: newSession,
-
-                teacher_uid: teacherUid,
-
-                department: selectedDepartment,
-
-                year: selectedYear,
-
-                subject: selectedSubject,
-
-                lat,
-
-                lng,
-              })
-            );
+        const response = await fetch(
+          `http://${window.location.hostname}:5000/attendance/start`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              teacher_uid: teacherUid,
+              department: selectedDepartment,
+              year: selectedYear,
+              subject: selectedSubject,
+              lat,
+              lng,
+            }),
           }
-        };
+        );
 
-        // Send immediately
-        sendSession();
+        const result = await response.json();
 
-        // Update QR every 3 seconds
-        intervalRef.current = setInterval(sendSession, 3000);
+        if (!result.success) {
+          alert(result.message || "Failed to start attendance");
+          return;
+        }
+
+        setSessionId(result.session_id);
+
+        // Refresh session every 3 seconds
+        intervalRef.current = setInterval(async () => {
+          try {
+              const res = await fetch(
+                  `http://${window.location.hostname}:5000/attendance/refresh`,
+                  {
+                      method: "POST",
+                      headers: {
+                          "Content-Type": "application/json",
+                      },
+                      body: JSON.stringify({
+                          session_id: result.session_id,
+                      }),
+                  }
+              );
+
+              const data = await res.json();
+
+              if (!data.success) {
+                  clearInterval(intervalRef.current);
+                  setAttendanceActive(false);
+                  setSessionId("SESSION_ENDED");
+                  return;
+              }
+
+              setSessionId(data.session_id);
+
+              // Update QR every refresh
+              if (data.session_id) {
+                  setSessionId(data.session_id);
+              }
+
+          } catch (err) {
+              console.log(err);
+          }
+      }, 5000);
+
         setAttendanceActive(true);
-      },
-      () => {
-        alert("❌ Location permission required to start attendance");
+
+      } catch (err) {
+        console.error(err);
+        alert("❌ Failed to start attendance");
+      }
+    },
+    () => {
+      alert("❌ Location permission required.");
+    }
+  );
+};
+
+const stopSession = async () => {
+  clearInterval(intervalRef.current);
+  intervalRef.current = null;
+
+  try {
+    await fetch(
+      `http://${window.location.hostname}:5000/attendance/stop`,
+      {
+        method: "POST",
       }
     );
-  };
+  } catch (err) {
+    console.log(err);
+  }
 
-  // Stop Attendance
-  const stopSession = () => {
-    clearInterval(intervalRef.current);
-    intervalRef.current = null;
-    setSessionId("SESSION_ENDED");
-    setAttendanceActive(false);
-  };
+  setAttendanceActive(false);
+  setSessionId("SESSION_ENDED");
+};
 
   const toggleSession = () => {
     if (!attendanceActive) {

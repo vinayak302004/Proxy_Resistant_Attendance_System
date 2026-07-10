@@ -8,11 +8,10 @@ export default function ScanQR() {
   const navigate = useNavigate();
   const [showSelfie, setShowSelfie] = useState(false);
   const [started, setStarted] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [sessionText, setSessionText] = useState("");
 
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannedRef = useRef(false);
+  const [sessionId, setSessionId] = useState("");
 
   // 🛑 STOP SCANNER + CAMERA
   const stopScanner = async () => {
@@ -37,7 +36,6 @@ export default function ScanQR() {
   const loadScanner = async () => {
     try {
       setStarted(true);
-      setSuccess(false);
       scannedRef.current = false;
 
       // Request camera permission first
@@ -57,61 +55,55 @@ export default function ScanQR() {
 
           console.log("✅ SCANNED:", decodedText);
 
-          let sessionId = decodedText;
-          let expiry: number | null = null;
-
-          if (decodedText.includes("|")) {
-            const parts = decodedText.split("|");
-            sessionId = parts[0];
-            expiry = Number(parts[1]);
-
-            if (Date.now() > expiry) {
-              alert("❌ QR Expired!");
-              scannedRef.current = false;
-              return;
-            }
-          }
-
-          // ✅ SHOW SUCCESS FIRST
-          setSessionText(sessionId);
+          const currentSessionId = decodedText;
+          setSessionId(currentSessionId);
           await stopScanner();
 
           setStarted(false);
 
-          setShowSelfie(true);
-
-          // 📍 ✅ ADD GPS HERE (SAFE PLACE)
           navigator.geolocation.getCurrentPosition(
-            (pos) => {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
+  async (pos) => {
+    try {
+      const studentUid = localStorage.getItem("uid");
 
-              console.log("📍 Student Location:", lat, lng);
+      const response = await fetch(
+        `http://${window.location.hostname}:5000/attendance/verify`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            student_uid: studentUid,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }),
+        }
+      );
 
-              // 📡 SEND TO SERVER WITH GPS
-              const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
-              ws.onopen = () => {
-                ws.send(JSON.stringify({
-                  type: "attendance",
-                  sessionId: sessionId,
-                  lat: lat,
-                  lng: lng
-                }));
-              };
-            },
-            (err) => {
-              console.error("❌ Location error:", err);
+      const result = await response.json();
 
-              // fallback → still send attendance (optional)
-              const ws = new WebSocket(`ws://${window.location.hostname}:8080`);
-              ws.onopen = () => {
-                ws.send(JSON.stringify({
-                  type: "attendance",
-                  sessionId: sessionId
-                }));
-              };
-            }
-          );
+      if (!result.success) {
+        alert(result.message);
+        scannedRef.current = false;
+        navigate("/profile");
+        return;
+      }
+      setShowSelfie(true);
+
+    } catch (err) {
+      console.error(err);
+      alert("Server Error");
+      navigate("/profile");
+    }
+  },
+  () => {
+    alert("Location permission required");
+    navigate("/profile");
+  }
+);
+         
         },
 
         () => {}
@@ -129,59 +121,40 @@ export default function ScanQR() {
 
       <h2>Scan QR Code</h2>
 
-      {showSelfie ? (
+      {showSelfie && sessionId ? (
 
-        <SelfieCapture
-          autoCapture={true}
-
-          onVerified={(name) => {
-
-            alert("✅ Attendance Marked ");
-
+    <SelfieCapture
+        sessionId={sessionId}
+        autoCapture={true}
+        onVerified={(name) => {
+            alert("✅ Attendance Marked");
             setShowSelfie(false);
-
             navigate("/profile");
-
-          }}
-
-          onFailed={() => {
-
+        }}
+        onFailed={() => {
             alert("❌ Face Verification Failed");
-
             setShowSelfie(false);
-
             navigate("/profile");
+        }}
+    />
 
-          }}
-        />
+) : !started ? (
 
-      ) : success ? (
+    <button onClick={loadScanner}>
+        ▶ Start Scanner
+    </button>
 
-        <div>
+) : (
 
-          <h2>QR Verified</h2>
-
-          <p>Opening Face Verification...</p>
-
-        </div>
-
-      ) : !started ? (
-
-        <button onClick={loadScanner}>
-          ▶ Start Scanner
-        </button>
-
-      ) : (
-
-        <div
-          id="qr-reader"
-          style={{
+    <div
+        id="qr-reader"
+        style={{
             maxWidth: "350px",
             margin: "auto"
-          }}
-        />
+        }}
+    />
 
-      )}
+)}
 
     </div>
   );
