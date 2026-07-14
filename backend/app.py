@@ -163,13 +163,39 @@ def mark_attendance():
         data = request.json
 
         student_uid = data.get("student_uid")
-        teacher_uid = data.get("teacher_uid")
-        department = data.get("department")
-        year = data.get("year")
-        subject = data.get("subject")
+        session_id = data.get("session_id")
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+
+        # Get session details
+
+        cursor.execute("""
+        SELECT
+        teacher_uid,
+        department,
+        year,
+        subject
+        FROM attendance_sessions
+        WHERE session_id=%s
+        """,(session_id,))
+
+        session = cursor.fetchone()
+
+        if not session:
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "success":False,
+                "message":"Invalid Session"
+            }),404
+
+        teacher_uid = session["teacher_uid"]
+        department = session["department"]
+        year = session["year"]
+        subject = session["subject"]
 
         # Get student details
         cursor.execute("""
@@ -250,6 +276,8 @@ def mark_attendance():
 
             INSERT INTO attendance(
 
+                session_id,
+                       
                 student_uid,
                 teacher_uid,
 
@@ -281,11 +309,14 @@ def mark_attendance():
                 %s,
                 %s,
                 %s,
+                %s,
                 'Present'
 
             )
 
         """, (
+
+            session_id,
 
             student_uid,
             teacher_uid,
@@ -374,13 +405,17 @@ def attendance_refresh():
     session = refresh_session()
 
     if session is None:
+
         return jsonify({
             "success": False
         })
 
     return jsonify({
+
         "success": True,
+
         "session_id": session["session_id"]
+
     })
 
 @app.route("/attendance/stop", methods=["POST"])
@@ -441,6 +476,194 @@ def attendance_all():
     except Exception as e:
 
         print("ATTENDANCE ALL ERROR:", e)
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }),500
+    
+@app.route("/attendance/live/<session_id>", methods=["GET"])
+def live_attendance(session_id):
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # -----------------------------
+        # Get Session Details
+        # -----------------------------
+
+        cursor.execute("""
+            SELECT
+                subject,
+                department,
+                year,
+                lecture_date,
+                start_time,
+                status
+            FROM attendance_sessions
+            WHERE session_id=%s
+        """, (session_id,))
+
+        session = cursor.fetchone()
+
+        if not session:
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "success": False,
+                "message": "Session not found"
+            }),404
+
+        if session["lecture_date"]:
+            session["lecture_date"] = str(session["lecture_date"])
+
+        if session["start_time"]:
+            session["start_time"] = str(session["start_time"])
+
+        # -----------------------------
+        # Get Students
+        # -----------------------------
+
+        cursor.execute("""
+            SELECT
+
+                prn,
+                student_name,
+                attendance_time,
+                status
+
+            FROM attendance
+
+            WHERE session_id=%s
+
+            ORDER BY attendance_time
+
+        """, (session_id,))
+
+        students = cursor.fetchall()
+
+        for row in students:
+
+            if row["attendance_time"]:
+                row["attendance_time"] = str(row["attendance_time"])
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+
+            "success": True,
+
+            "session": session,
+
+            "students": students,
+
+            "present_count": len(students)
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success": False,
+
+            "message": str(e)
+
+        }),500
+    
+    
+@app.route("/teacher/sessions/<teacher_uid>", methods=["GET"])
+def teacher_sessions(teacher_uid):
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                session_id,
+                subject,
+                department,
+                year,
+                lecture_date,
+                start_time,
+                end_time,
+                status
+            FROM attendance_sessions
+            WHERE teacher_uid=%s
+            ORDER BY lecture_date DESC,
+                     start_time DESC
+        """, (teacher_uid,))
+
+        sessions = cursor.fetchall()
+
+        for row in sessions:
+
+            if row["lecture_date"]:
+                row["lecture_date"] = str(row["lecture_date"])
+
+            if row["start_time"]:
+                row["start_time"] = str(row["start_time"])
+
+            if row["end_time"]:
+                row["end_time"] = str(row["end_time"])
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "sessions": sessions
+        })
+
+    except Exception as e:
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }),500
+    
+@app.route("/attendance/session/<session_id>", methods=["GET"])
+def attendance_by_session(session_id):
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT
+                prn,
+                student_name,
+                attendance_time,
+                status
+            FROM attendance
+            WHERE session_id=%s
+            ORDER BY attendance_time
+        """, (session_id,))
+
+        students = cursor.fetchall()
+
+        for row in students:
+
+            if row["attendance_time"]:
+                row["attendance_time"] = str(row["attendance_time"])
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "students": students
+        })
+
+    except Exception as e:
 
         return jsonify({
             "success": False,

@@ -137,10 +137,7 @@ export default function SelfieCapture({
                 },
                 body: JSON.stringify({
                     student_uid: uid,
-                    teacher_uid: result.teacher_uid,
-                    department: result.department,
-                    year: result.year,
-                    subject: result.subject,
+                    session_id: sessionId,
                 }),
             });
 

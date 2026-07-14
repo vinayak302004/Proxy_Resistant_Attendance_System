@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "../../styles/attendance.css";
 import { API_URL } from "../../config";
@@ -6,36 +6,36 @@ import { API_URL } from "../../config";
 export default function TeacherAttendance() {
   const navigate = useNavigate();
 
-  const [attendance, setAttendance] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [selectedSubject, setSelectedSubject] = useState("");
-  const [selectedDate, setSelectedDate] = useState("");
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedSession, setSelectedSession] = useState("");
+
+  const [students, setStudents] = useState<any[]>([]);
 
   useEffect(() => {
-    loadAttendance();
+    loadSessions();
   }, []);
 
-  const loadAttendance = async () => {
+  const loadSessions = async () => {
     try {
       const teacherUid = localStorage.getItem("uid");
 
       const res = await fetch(
-        `${API_URL}/attendance/all?teacher_uid=${teacherUid}`
+        `${API_URL}/attendance/sessions?teacher_uid=${teacherUid}`
       );
 
       const data = await res.json();
 
-        setAttendance(data || []);
+      if (data.success) {
+        setSessions(data.sessions);
 
-        if (data.length > 0) {
+        if (data.sessions.length > 0) {
+          setSelectedSession(data.sessions[0].session_id);
 
-        setSelectedSubject(data[0].subject);
-
-        setSelectedDate(data[0].attendance_date);
-
+          loadStudents(data.sessions[0].session_id);
         }
-
+      }
     } catch (err) {
       console.log(err);
     }
@@ -43,57 +43,27 @@ export default function TeacherAttendance() {
     setLoading(false);
   };
 
-  const subjects = useMemo(() => {
+  const loadStudents = async (sessionId: string) => {
+    try {
+      const res = await fetch(
+        `${API_URL}/attendance/session/${sessionId}`
+      );
 
-    return [
-        ...new Set(
-        attendance.map((a) => a.subject)
-        )
-    ];
+      const data = await res.json();
 
-    }, [attendance]);
+      if (data.success) {
+        setStudents(data.students);
+      } else {
+        setStudents([]);
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
-  const dates = useMemo(() => {
-
-    return [
-        ...new Set(
-        attendance
-            .filter(
-            (a) => a.subject === selectedSubject
-            )
-            .map(
-            (a) => a.attendance_date
-            )
-        )
-    ];
-
-    }, [attendance, selectedSubject]);
-
-  const filtered =
-    attendance.length > 0
-        ? attendance.filter(
-            (a) =>
-            a.subject === selectedSubject &&
-            a.attendance_date === selectedDate
-        )
-        : [
-            {
-            prn: "2317049",
-            student_name: "Vinayak Dhulubulu",
-            department: "AIML",
-            year: "Final Year",
-            status: "Present",
-            attendance_time: "12:19:47",
-            },
-            {
-            prn: "2467001",
-            student_name: "Atharvr Kadam",
-            department: "AIML",
-            year: "Final Year",
-            status: "Present",
-            attendance_time: "12:20:10",
-            },
-        ];
+  const currentLecture = sessions.find(
+    (s) => s.session_id === selectedSession
+  );
 
   return (
     <div className="attendance-page">
@@ -114,174 +84,186 @@ export default function TeacherAttendance() {
 
       </div>
 
+      {/* Lecture Selection */}
+
       <div className="filter-card">
 
         <div>
 
-          <label>Subject</label>
+          <label>Select Lecture</label>
 
           <select
-            value={selectedSubject}
+            value={selectedSession}
             onChange={(e) => {
-
-                const subject = e.target.value;
-
-                setSelectedSubject(subject);
-
-                const first = attendance.find(
-                (x) => x.subject === subject
-                );
-
-                setSelectedDate(first?.attendance_date || "");
-
+              setSelectedSession(e.target.value);
+              loadStudents(e.target.value);
             }}
-            >
+          >
 
-            <option value="">
-            Select Subject
-            </option>
+            {sessions.map((session) => (
 
-            {
-            subjects.map((subject)=>(
-            <option key={subject} value={subject}>
-                {subject}
-            </option>
-            ))
-            }
+              <option
+                key={session.session_id}
+                value={session.session_id}
+              >
 
-            </select>
+                {session.subject} | {session.lecture_date} |{" "}
+                {session.start_time}
 
-        </div>
+              </option>
 
-        <div>
+            ))}
 
-          <label>Date</label>
-
-          <select
-            value={selectedDate}
-            onChange={(e)=>setSelectedDate(e.target.value)}
-            >
-
-            <option value="">
-            Select Date
-            </option>
-
-            {
-            dates.map((date)=>(
-            <option key={date} value={date}>
-                {date}
-            </option>
-            ))
-            }
-
-            </select>
+          </select>
 
         </div>
 
       </div>
 
+      {/* Lecture Details */}
+
+      {currentLecture && (
+
+        <div className="table-card" style={{ marginBottom: 25 }}>
+
+          <div style={{ padding: 25 }}>
+
+            <h2>{currentLecture.subject}</h2>
+
+            <p>
+              <b>Department :</b> {currentLecture.department}
+            </p>
+
+            <p>
+              <b>Year :</b> {currentLecture.year}
+            </p>
+
+            <p>
+              <b>Date :</b> {currentLecture.lecture_date}
+            </p>
+
+            <p>
+              <b>Time :</b>{" "}
+              {currentLecture.start_time}
+              {" - "}
+              {currentLecture.end_time || "Running"}
+            </p>
+
+            <p>
+              <b>Status :</b> {currentLecture.status}
+            </p>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {/* Summary */}
+
       <div className="summary-cards">
 
-        {selectedSubject && selectedDate && (
-        <>
-            <div className="summary-cards">
-
-            <div className="summary-card">
-                <h2>{filtered.length}</h2>
-                <span>Total Students</span>
-            </div>
-
-            <div className="summary-card green">
-                <h2>
-                {filtered.filter((x) => x.status === "Present").length}
-                </h2>
-                <span>Present</span>
-            </div>
-
-            <div className="summary-card red">
-                <h2>
-                {filtered.filter((x) => x.status === "Absent").length}
-                </h2>
-                <span>Absent</span>
-            </div>
-
-            </div>
-
-            <div className="table-card">
-
-            {loading ? (
-                <h2>Loading...</h2>
-            ) : (
-                <table>
-
-                <thead>
-                    <tr>
-                    <th>PRN</th>
-                    <th>Name</th>
-                    <th>Department</th>
-                    <th>Year</th>
-                    <th>Status</th>
-                    <th>Time</th>
-                    </tr>
-                </thead>
-
-                <tbody>
-
-                    {filtered.length === 0 ? (
-                    <tr>
-                        <td colSpan={6}>
-                        No Attendance Found
-                        </td>
-                    </tr>
-                    ) : (
-                    filtered.map((item, i) => (
-                        <tr key={i}>
-                        <td>{item.prn}</td>
-                        <td>{item.student_name}</td>
-                        <td>{item.department}</td>
-                        <td>{item.year}</td>
-
-                        <td>
-                            <span
-                            className={
-                                item.status === "Present"
-                                ? "status present"
-                                : "status absent"
-                            }
-                            >
-                            {item.status}
-                            </span>
-                        </td>
-
-                        <td>{item.attendance_time}</td>
-                        </tr>
-                    ))
-                    )}
-
-                </tbody>
-
-                </table>
-            )}
-
-            </div>
-        </>
-        )}
-
-        {(!selectedSubject || !selectedDate) && (
-        <div
-            style={{
-            marginTop: "40px",
-            padding: "50px",
-            background: "#fff",
-            borderRadius: "12px",
-            textAlign: "center",
-            color: "#777",
-            fontSize: "18px",
-            boxShadow: "0 2px 10px rgba(0,0,0,0.08)"
-            }}
-        >
-            📚 Please select a <strong>Subject</strong> and <strong>Date</strong> to view attendance.
+        <div className="summary-card">
+          <h2>{students.length}</h2>
+          <span>Total Students</span>
         </div>
+
+        <div className="summary-card green">
+          <h2>
+            {students.filter(
+              (x) => x.status === "Present"
+            ).length}
+          </h2>
+          <span>Present</span>
+        </div>
+
+        <div className="summary-card red">
+          <h2>
+            {students.filter(
+              (x) => x.status === "Absent"
+            ).length}
+          </h2>
+          <span>Absent</span>
+        </div>
+
+      </div>
+
+      {/* Attendance Table */}
+
+      <div className="table-card">
+
+        {loading ? (
+
+          <h2 style={{ padding: 30 }}>Loading...</h2>
+
+        ) : (
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>PRN</th>
+
+                <th>Name</th>
+
+                <th>Status</th>
+
+                <th>Time</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              {students.length === 0 ? (
+
+                <tr>
+
+                  <td colSpan={4}>
+                    No Attendance Found
+                  </td>
+
+                </tr>
+
+              ) : (
+
+                students.map((item: any, i: number) => (
+
+                  <tr key={i}>
+
+                    <td>{item.prn}</td>
+
+                    <td>{item.student_name}</td>
+
+                    <td>
+
+                      <span
+                        className={
+                          item.status === "Present"
+                            ? "status present"
+                            : "status absent"
+                        }
+                      >
+                        {item.status}
+                      </span>
+
+                    </td>
+
+                    <td>{item.attendance_time}</td>
+
+                  </tr>
+
+                ))
+
+              )}
+
+            </tbody>
+
+          </table>
+
         )}
 
       </div>

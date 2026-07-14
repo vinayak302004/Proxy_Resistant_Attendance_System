@@ -72,12 +72,15 @@ export default function Dashboard() {
   const [teacher, setTeacher] = useState<any>(null);
   const [attendanceActive, setAttendanceActive] = useState(false);
   const [sessionId, setSessionId] = useState("SESSION_INIT");
+  const [liveAttendance, setLiveAttendance] = useState<any[]>([]);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
 
   const [selectedDepartment, setSelectedDepartment] = useState("");
   const [selectedYear, setSelectedYear] = useState("");
   const [selectedSubject, setSelectedSubject] = useState("");
 
   const intervalRef = useRef<any>(null);
+  const liveIntervalRef = useRef<any>(null);
 
   const navigate = useNavigate();
 
@@ -99,10 +102,16 @@ export default function Dashboard() {
             .catch(err => console.log(err));
 
     }
+
+    
     return () => {
-  if (intervalRef.current) {
-    clearInterval(intervalRef.current);
-  }
+      if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+      }
+
+      if (liveIntervalRef.current) {
+          clearInterval(liveIntervalRef.current);
+}
 };
   }, []);
 
@@ -146,7 +155,8 @@ const startSession = () => {
           return;
         }
 
-        setSessionId(result.session_id);
+        let currentSession = result.session_id;
+        setSessionId(currentSession);
 
         // Refresh session every 3 seconds
         intervalRef.current = setInterval(async () => {
@@ -173,11 +183,9 @@ const startSession = () => {
                   return;
               }
 
-              setSessionId(data.session_id);
-
-              // Update QR every refresh
               if (data.session_id) {
-                  setSessionId(data.session_id);
+                  currentSession = data.session_id;
+                  setSessionId(currentSession);
               }
 
           } catch (err) {
@@ -186,6 +194,37 @@ const startSession = () => {
       }, 8000);
 
         setAttendanceActive(true);
+        setLiveAttendance([]);
+
+        liveIntervalRef.current = setInterval(async () => {
+
+            try {
+
+                const res = await fetch(
+                    `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
+                );
+
+                const data = await res.json();
+
+                if (data.success) {
+
+                    setSessionInfo(data.session);
+
+                    setLiveAttendance(data.students);
+
+                } else {
+
+                    setSessionInfo(null);
+
+                    setLiveAttendance([]);
+
+                }
+
+            } catch (err) {
+                console.log(err);
+            }
+
+        }, 2000);
 
       } catch (err) {
         console.error(err);
@@ -200,6 +239,8 @@ const startSession = () => {
 
 const stopSession = async () => {
   clearInterval(intervalRef.current);
+  clearInterval(liveIntervalRef.current);
+  liveIntervalRef.current = null;
   intervalRef.current = null;
 
   try {
@@ -212,7 +253,7 @@ const stopSession = async () => {
   } catch (err) {
     console.log(err);
   }
-
+  setLiveAttendance([]);
   setAttendanceActive(false);
   setSessionId("SESSION_ENDED");
 };
@@ -318,6 +359,38 @@ const stopSession = async () => {
         <div className="card center">
           <h2>Live Session QR</h2>
 
+          {attendanceActive && sessionInfo && (
+
+          <div
+              style={{
+                  background: "#f8fbff",
+                  padding: "12px",
+                  borderRadius: "10px",
+                  marginBottom: "15px",
+                  textAlign: "left"
+              }}
+          >
+
+              <p>
+                  <strong>Subject:</strong> {sessionInfo.subject}
+              </p>
+
+              <p>
+                  <strong>Department:</strong> {sessionInfo.department}
+              </p>
+
+              <p>
+                  <strong>Year:</strong> {sessionInfo.year}
+              </p>
+
+              <p>
+                  <strong>Started:</strong> {sessionInfo.start_time}
+              </p>
+
+          </div>
+
+      )}
+
           <p
             style={{
               fontSize: "12px",
@@ -334,9 +407,92 @@ const stopSession = async () => {
               )}`}
               alt="QR Code"
             />
+            
           ) : (
             <p style={{ color: "gray" }}>Session not active</p>
           )}
+          <div
+    style={{
+        marginTop: "20px",
+        width: "100%"
+    }}
+>
+
+    <div
+        style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center"
+        }}
+    >
+
+        <h3>Live Attendance</h3>
+
+        <strong>
+
+            Present : {liveAttendance.length}
+
+        </strong>
+
+    </div>
+
+    <table
+        style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: "14px"
+        }}
+    >
+
+        <thead>
+
+            <tr>
+
+                <th>PRN</th>
+
+                <th>Name</th>
+
+                <th>Time</th>
+
+            </tr>
+
+        </thead>
+
+        <tbody>
+
+        {liveAttendance.length === 0 ? (
+
+            <tr>
+
+                <td colSpan={3}>
+                    Waiting for students...
+                </td>
+
+            </tr>
+
+        ) : (
+
+            liveAttendance.map((student, index) => (
+
+                <tr key={index}>
+
+                    <td>{student.prn}</td>
+
+                    <td>{student.student_name}</td>
+
+                    <td>{student.attendance_time}</td>
+
+                </tr>
+
+            ))
+
+        )}
+
+        </tbody>
+
+    </table>
+
+</div>
         </div>
       </div>
     </>
