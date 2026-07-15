@@ -508,6 +508,156 @@ def teacher_attendance():
             "message": str(e)
         }), 500
 
+# -------------------------------------
+# Student Attendance Dashboard
+# -------------------------------------
+
+@app.route("/student/attendance/<firebase_uid>", methods=["GET"])
+def student_attendance(firebase_uid):
+
+    try:
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # ----------------------------
+        # Student Details
+        # ----------------------------
+
+        cursor.execute("""
+            SELECT
+                prn,
+                full_name,
+                branch,
+                year
+            FROM students
+            WHERE firebase_uid=%s
+        """,(firebase_uid,))
+
+        student = cursor.fetchone()
+
+        if not student:
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "success":False,
+                "message":"Student not found"
+            }),404
+
+        prn = student["prn"]
+        branch = student["branch"]
+        year = student["year"]
+
+        # ----------------------------
+        # All Lectures
+        # ----------------------------
+
+        cursor.execute("""
+            SELECT
+                session_id,
+                subject,
+                lecture_date,
+                start_time,
+                end_time
+            FROM attendance_sessions
+            WHERE
+                department=%s
+            AND
+                year=%s
+            ORDER BY lecture_date DESC,start_time DESC
+        """,(branch,year))
+
+        lectures = cursor.fetchall()
+
+        attendance_list = []
+
+        present = 0
+        absent = 0
+
+        for lecture in lectures:
+
+            cursor.execute("""
+                SELECT
+                    attendance_time
+                FROM attendance
+                WHERE
+                    session_id=%s
+                AND
+                    prn=%s
+            """,(lecture["session_id"],prn))
+
+            record = cursor.fetchone()
+
+            if record:
+
+                status="Present"
+                time=str(record["attendance_time"])
+                present +=1
+
+            else:
+
+                status="Absent"
+                time="-"
+                absent +=1
+
+            attendance_list.append({
+
+                "subject":lecture["subject"],
+
+                "date":str(lecture["lecture_date"]),
+
+                "start_time":str(lecture["start_time"]),
+
+                "end_time":str(lecture["end_time"])
+                    if lecture["end_time"]
+                    else "-",
+
+                "status":status,
+
+                "attendance_time":time
+
+            })
+
+        total=len(lectures)
+
+        percentage=0
+
+        if total>0:
+
+            percentage=round((present/total)*100,2)
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+
+            "success":True,
+
+            "summary":{
+
+                "total":total,
+                "present":present,
+                "absent":absent,
+                "percentage":percentage
+
+            },
+
+            "attendance":attendance_list
+
+        })
+
+    except Exception as e:
+
+        return jsonify({
+
+            "success":False,
+            "message":str(e)
+
+        }),500
+    
+    
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",

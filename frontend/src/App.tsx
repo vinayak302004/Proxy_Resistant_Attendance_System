@@ -6,6 +6,7 @@ import Reports from "./pages/teacher/Reports";
 import ScanQR from "./pages/student/ScanQR";
 import Profile from "./pages/student/Profile";
 import TeacherAttendance from "./pages/teacher/TeacherAttendance";
+import StudentAttendance from "./pages/student/StudentAttendance";
 
 /* 🔐 Route Protection */
 const PrivateRoute = ({ children, role }: any) => {
@@ -70,6 +71,11 @@ function App() {
               <ScanQR />
             </PrivateRoute>
           }
+        />
+
+        <Route
+          path="/student-attendance"
+          element={<StudentAttendance />}
         />
 
         <Route path="*" element={<Navigate to="/" />} />
