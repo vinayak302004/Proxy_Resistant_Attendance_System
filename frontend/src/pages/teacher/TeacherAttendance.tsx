@@ -208,11 +208,33 @@ export default function TeacherAttendance() {
 
       {/* Metrics Card */}
       <div className="summary-cards">
+
         <div className="summary-card">
-          <h2>{students.length}</h2>
-          <span>Total Present</span>
+            <h2>{students.length}</h2>
+            <span>Total Students</span>
         </div>
-      </div>
+
+        <div className="summary-card green">
+            <h2>
+                {students.filter(
+                    (s) => s.status === "Present"
+                ).length}
+            </h2>
+
+            <span>Present</span>
+        </div>
+
+        <div className="summary-card red">
+            <h2>
+                {students.filter(
+                    (s) => s.status === "Absent"
+                ).length}
+            </h2>
+
+            <span>Absent</span>
+        </div>
+
+    </div>
 
       {/* Student List Table */}
       <div className="table-card">
@@ -241,8 +263,14 @@ export default function TeacherAttendance() {
                     <td>{student.prn}</td>
                     <td>{student.student_name}</td>
                     <td>
-                      <span className="status present">
-                        {student.status}
+                      <span
+                          className={
+                              student.status === "Present"
+                                  ? "status present"
+                                  : "status absent"
+                          }
+                      >
+                          {student.status}
                       </span>
                     </td>
                     <td>{student.attendance_time}</td>
