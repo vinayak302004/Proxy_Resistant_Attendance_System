@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import "../../styles/profile.css";
 import { API_URL } from "../../config"; // Adjust path if needed
 
@@ -14,6 +15,7 @@ interface Student {
 
 export default function Profile() {
 
+  const navigate = useNavigate();
   const [student, setStudent] = useState<Student | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -45,7 +47,7 @@ export default function Profile() {
   }, []);
 
   const openScanner = () => {
-    window.location.href = "/scan";
+    navigate("/scan");
   };
 
   if (loading) {
@@ -99,7 +101,7 @@ export default function Profile() {
         <div className="section">
           <button
               className="btn"
-              onClick={() => window.location.href="/student/attendance"}
+              onClick={() => navigate("/student-attendance")}
           >
               📊 View Attendance
           </button>
