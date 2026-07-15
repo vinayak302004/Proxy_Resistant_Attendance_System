@@ -16,13 +16,10 @@ export default function SelfieCapture({
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-
   const [loading, setLoading] = useState(false);
-
 
   useEffect(() => {
     startCamera();
-
     return () => {
       stopCamera();
     };
@@ -36,16 +33,13 @@ export default function SelfieCapture({
     }, 2500);
 
     return () => clearTimeout(timer);
-  }, []);
+  }, [autoCapture]);
 
   const startCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "user",
-        },
+        video: { facingMode: "user" },
       });
-
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -57,9 +51,7 @@ export default function SelfieCapture({
 
   const stopCamera = () => {
     if (!videoRef.current) return;
-
     const stream = videoRef.current.srcObject as MediaStream;
-
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
     }
@@ -69,7 +61,6 @@ export default function SelfieCapture({
     if (!videoRef.current || !canvasRef.current) return;
 
     setLoading(true);
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
 
@@ -77,7 +68,6 @@ export default function SelfieCapture({
     canvas.height = video.videoHeight;
 
     const ctx = canvas.getContext("2d");
-
     if (!ctx) {
       setLoading(false);
       return;
@@ -92,10 +82,7 @@ export default function SelfieCapture({
       }
 
       try {
-
-        // Get logged in student's UID
         const uid = localStorage.getItem("uid");
-
         if (!uid) {
           alert("User not logged in.");
           setLoading(false);
@@ -103,13 +90,8 @@ export default function SelfieCapture({
         }
 
         const formData = new FormData();
-
-        // Send image
         formData.append("image", blob, "selfie.jpg");
-
-        // Send Firebase UID
         formData.append("uid", uid);
-
         formData.append("session_id", sessionId);
 
         console.log("Backend:", `${API_URL}/verify-face`);
@@ -121,55 +103,40 @@ export default function SelfieCapture({
         });
 
         console.log("Status:", response.status);
-
         const result = await response.json();
-
         console.log(result);
 
         if (result.verified) {
+          const markResponse = await fetch(`${API_URL}/attendance/mark`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              student_uid: uid,
+              session_id: sessionId,
+            }),
+          });
 
-            const uid = localStorage.getItem("uid");
+          const markResult = await markResponse.json();
 
-            const markResponse = await fetch(`${API_URL}/attendance/mark`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    student_uid: uid,
-                    session_id: sessionId,
-                }),
-            });
+          if (!markResult.success) {
+            alert(markResult.message);
+            onFailed();
+            return;
+          }
 
-            const markResult = await markResponse.json();
-
-            if (!markResult.success) {
-                alert(markResult.message);
-                onFailed();
-                return;
-            }
-
-            stopCamera();
-            onVerified(result.name);
-        }
-        else {
+          stopCamera();
+          onVerified(result.name);
+        } else {
           alert(result.message);
           onFailed();
         }
-
       } catch (err: any) {
         console.error(err);
-
-        alert(
-          "Cannot connect to Flask Server.\n\n" +
-          err.message
-        );
-
+        alert("Cannot connect to Flask Server.\n\n" + err.message);
         onFailed();
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
-
     }, "image/jpeg");
   };
 
@@ -205,10 +172,7 @@ export default function SelfieCapture({
         </p>
       )}
 
-      <canvas
-        ref={canvasRef}
-        style={{ display: "none" }}
-      />
+      <canvas ref={canvasRef} style={{ display: "none" }} />
     </div>
   );
 }
