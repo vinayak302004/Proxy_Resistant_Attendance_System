@@ -37,6 +37,50 @@ The system workflow is divided into key modules:
 
 ---
 
+## **Screenshots**
+
+### **Login Page**
+
+![Login Page](screenshots/Login.png)
+
+---
+
+### **Teacher Dashboard**
+
+![Teacher Dashboard](screenshots/Teacher_Dashboard.png)
+
+---
+
+### **Teacher Attendance Dashboard**
+
+![Teacher Attendance Dashboard](screenshots/Teacher_Attendance.png)
+
+---
+
+### **Student Dashboard**
+
+![Student Dashboard](screenshots/Student_Dashboard.png)
+
+---
+
+### **Student Attendance Dashboard**
+
+![Student Attendance Dashboard](screenshots/Student_Attendance.png)
+
+---
+
+### **Scanner**
+
+![Scanner](screenshots/Scanner.jpeg)
+
+---
+
+### **Selfie Camera**
+
+![SelfieCamera](screenshots/Selfie_Camera.jpg)
+
+---
+
 ## **Modules**
 
 - **User Authentication**: Secure login, role-based access control  
