@@ -71,7 +71,8 @@ const departmentSubjects: {
 export default function Dashboard() {
   const [teacher, setTeacher] = useState<any>(null);
   const [attendanceActive, setAttendanceActive] = useState(false);
-  const [sessionId, setSessionId] = useState("SESSION_INIT");
+  const [sessionId, setSessionId] = useState("");
+  const [qrToken, setQrToken] = useState("");
   const [liveAttendance, setLiveAttendance] = useState<any[]>([]);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
 
@@ -156,7 +157,17 @@ const startSession = () => {
         }
 
         let currentSession = result.session_id;
+        let currentQrToken = result.qr_token;
+
         setSessionId(currentSession);
+        setQrToken(currentQrToken);
+
+        setSessionInfo({
+            subject: selectedSubject,
+            department: selectedDepartment,
+            year: selectedYear,
+            start_time: new Date().toLocaleTimeString(),
+        });
 
         // Refresh session every 3 seconds
         intervalRef.current = setInterval(async () => {
@@ -188,8 +199,18 @@ const startSession = () => {
                   setSessionId(currentSession);
               }
 
+              if (data.qr_token) {
+
+                  console.log("OLD TOKEN :", currentQrToken);
+                  console.log("NEW TOKEN :", data.qr_token);
+
+                  currentQrToken = data.qr_token;
+
+                  setQrToken(data.qr_token);
+              }
+
           } catch (err) {
-              console.log(err);
+              console.error("Refresh Error:", err);
           }
       }, 8000);
 
@@ -197,32 +218,34 @@ const startSession = () => {
         setLiveAttendance([]);
 
         liveIntervalRef.current = setInterval(async () => {
-
+            console.log("Refreshing QR...");
             try {
+              if (!attendanceActive) return;
 
-                const res = await fetch(
-                    `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
-                );
+              const res = await fetch(
+                  `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
+              );
 
-                const data = await res.json();
+              if (!res.ok) {
+                  clearInterval(liveIntervalRef.current);
+                  liveIntervalRef.current = null;
+                  return;
+              }
 
-                if (data.success) {
+              const data = await res.json();
 
-                    setSessionInfo(data.session);
+              if (data.success) {
+                  setSessionInfo(data.session);
+                  setLiveAttendance(data.students);
+              } else {
+                  clearInterval(liveIntervalRef.current);
+                  liveIntervalRef.current = null;
+              }
 
-                    setLiveAttendance(data.students);
-
-                } else {
-
-                    setSessionInfo(null);
-
-                    setLiveAttendance([]);
-
-                }
-
-            } catch (err) {
-                console.log(err);
-            }
+          } catch (err) {
+              clearInterval(liveIntervalRef.current);
+              liveIntervalRef.current = null;
+          }
 
         }, 2000);
 
@@ -238,10 +261,15 @@ const startSession = () => {
 };
 
 const stopSession = async () => {
-  clearInterval(intervalRef.current);
-  clearInterval(liveIntervalRef.current);
-  liveIntervalRef.current = null;
-  intervalRef.current = null;
+  if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+  }
+
+  if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current);
+      liveIntervalRef.current = null;
+  }
 
   try {
     await fetch(
@@ -255,6 +283,8 @@ const stopSession = async () => {
   }
   setLiveAttendance([]);
   setAttendanceActive(false);
+  setSessionInfo(null);
+  setQrToken("");
   setSessionId("SESSION_ENDED");
 };
 
@@ -355,41 +385,38 @@ const stopSession = async () => {
           </button>
         </div>
 
+
         {/* RIGHT PANEL */}
         <div className="card center">
           <h2>Live Session QR</h2>
 
           {attendanceActive && sessionInfo && (
+              <div
+                  style={{
+                      background: "#f8fbff",
+                      padding: "12px",
+                      borderRadius: "10px",
+                      marginBottom: "15px",
+                      textAlign: "left",
+                  }}
+              >
+                  <p>
+                      <strong>Subject:</strong> {sessionInfo.subject}
+                  </p>
 
-          <div
-              style={{
-                  background: "#f8fbff",
-                  padding: "12px",
-                  borderRadius: "10px",
-                  marginBottom: "15px",
-                  textAlign: "left"
-              }}
-          >
+                  <p>
+                      <strong>Department:</strong> {sessionInfo.department}
+                  </p>
 
-              <p>
-                  <strong>Subject:</strong> {sessionInfo.subject}
-              </p>
+                  <p>
+                      <strong>Year:</strong> {sessionInfo.year}
+                  </p>
 
-              <p>
-                  <strong>Department:</strong> {sessionInfo.department}
-              </p>
-
-              <p>
-                  <strong>Year:</strong> {sessionInfo.year}
-              </p>
-
-              <p>
-                  <strong>Started:</strong> {sessionInfo.start_time}
-              </p>
-
-          </div>
-
-      )}
+                  <p>
+                      <strong>Started:</strong> {sessionInfo.start_time}
+                  </p>
+              </div>
+          )}
 
           <p
             style={{
@@ -402,9 +429,7 @@ const stopSession = async () => {
 
           {attendanceActive ? (
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
-                sessionId
-              )}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrToken)}&t=${Date.now()}`}
               alt="QR Code"
             />
             

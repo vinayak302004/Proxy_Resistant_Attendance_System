@@ -10,6 +10,7 @@ def start_session(teacher_uid, department, year, subject, lat, lng):
     cursor = conn.cursor(dictionary=True)
 
     session_id = str(uuid.uuid4())
+    qr_token = str(uuid.uuid4())
 
     today = datetime.now().date()
     now = datetime.now().time()
@@ -18,6 +19,7 @@ def start_session(teacher_uid, department, year, subject, lat, lng):
         INSERT INTO attendance_sessions(
 
             session_id,
+            qr_token,
             teacher_uid,
             subject,
             department,
@@ -29,21 +31,21 @@ def start_session(teacher_uid, department, year, subject, lat, lng):
         )
 
         VALUES(
-
-            %s,
-            %s,
-            %s,
-            %s,
-            %s,
-            %s,
-            %s,
-            'ACTIVE'
-
+        %s,
+        %s,
+        %s,
+        %s,
+        %s,
+        %s,
+        %s,
+        %s,
+        'ACTIVE'
         )
 
     """, (
 
         session_id,
+        qr_token,
         teacher_uid,
         subject,
         department,
@@ -59,7 +61,8 @@ def start_session(teacher_uid, department, year, subject, lat, lng):
     conn.close()
 
     return {
-        "session_id": session_id
+        "session_id": session_id,
+        "qr_token": qr_token
     }
 
 
@@ -92,16 +95,44 @@ def get_session():
 
 def refresh_session():
 
-    """
-    IMPORTANT
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
 
-    Session ID should NEVER change.
+    cursor.execute("""
+        SELECT session_id
+        FROM attendance_sessions
+        WHERE status='ACTIVE'
+        ORDER BY created_at DESC
+        LIMIT 1
+    """)
 
-    We only return the active session.
+    session = cursor.fetchone()
 
-    """
+    if not session:
+        cursor.close()
+        conn.close()
+        return None
 
-    return get_session()
+    new_token = str(uuid.uuid4())
+
+    cursor.execute("""
+        UPDATE attendance_sessions
+        SET qr_token=%s
+        WHERE session_id=%s
+    """, (
+        new_token,
+        session["session_id"]
+    ))
+
+    conn.commit()
+
+    cursor.close()
+    conn.close()
+
+    return {
+        "session_id": session["session_id"],
+        "qr_token": new_token
+    }
 
 
 def stop_session():

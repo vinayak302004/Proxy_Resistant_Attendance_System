@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/auth/Login";
 import Dashboard from "./pages/teacher/Dashboard";
-import Reports from "./pages/teacher/Reports";
 import ScanQR from "./pages/student/ScanQR";
 import Profile from "./pages/student/Profile";
 import TeacherAttendance from "./pages/teacher/TeacherAttendance";
@@ -41,15 +40,6 @@ function App() {
           element={
             <PrivateRoute role="teacher">
               <TeacherAttendance />
-            </PrivateRoute>
-          }
-        />
-
-        <Route
-          path="/reports"
-          element={
-            <PrivateRoute role="teacher">
-              <Reports />
             </PrivateRoute>
           }
         />

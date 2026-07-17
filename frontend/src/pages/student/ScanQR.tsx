@@ -12,6 +12,7 @@ export default function ScanQR() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannedRef = useRef(false);
   const [sessionId, setSessionId] = useState("");
+  const [qrToken, setQrToken] = useState("");
 
   // 🛑 STOP SCANNER + CAMERA
   const stopScanner = async () => {
@@ -55,8 +56,8 @@ export default function ScanQR() {
 
           console.log("✅ SCANNED:", decodedText);
 
-          const currentSessionId = decodedText;
-          setSessionId(currentSessionId);
+          const currentQrToken = decodedText;
+          setQrToken(currentQrToken);
           await stopScanner();
 
           setStarted(false);
@@ -74,15 +75,16 @@ export default function ScanQR() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            session_id: currentSessionId,
-            student_uid: studentUid,
-            lat: pos.coords.latitude,
-            lng: pos.coords.longitude,
+              qr_token: currentQrToken,
+              student_uid: studentUid,
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
           }),
         }
       );
 
       const result = await response.json();
+      setSessionId(result.session_id);
 
       if (!result.success) {
         alert(result.message);

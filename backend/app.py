@@ -235,7 +235,8 @@ def attendance_start():
     )
     return jsonify({
         "success": True,
-        "session_id": session["session_id"]
+        "session_id": session["session_id"],
+        "qr_token": session["qr_token"]
     })
 
 @app.route("/attendance/verify", methods=["POST"])
@@ -248,23 +249,30 @@ def attendance_verify():
         })
 
     data = request.json
-    if data["session_id"] != session["session_id"]:
+    if data["qr_token"] != session["qr_token"]:
         return jsonify({
             "success": False,
-            "message": "Invalid QR Code"
+            "message": "QR Expired"
         })
 
-    return jsonify({"success": True})
+    return jsonify({
+        "success": True,
+        "session_id": session["session_id"]
+    })
 
 @app.route("/attendance/refresh", methods=["POST"])
 def attendance_refresh():
     session = refresh_session()
+
+    print("REFRESH RESPONSE:", session)
+
     if session is None:
         return jsonify({"success": False})
 
     return jsonify({
         "success": True,
-        "session_id": session["session_id"]
+        "session_id": session["session_id"],
+        "qr_token": session["qr_token"]
     })
 
 @app.route("/attendance/stop", methods=["POST"])
