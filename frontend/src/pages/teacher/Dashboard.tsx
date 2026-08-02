@@ -220,7 +220,6 @@ const startSession = () => {
         liveIntervalRef.current = setInterval(async () => {
             console.log("Refreshing QR...");
             try {
-              if (!attendanceActive) return;
 
               const res = await fetch(
                   `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
