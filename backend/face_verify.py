@@ -2,6 +2,7 @@ import cv2
 import pickle
 import numpy as np
 import face_recognition
+from liveness import check_liveness
 
 from database import get_db_connection
 
@@ -11,6 +12,14 @@ with open("encodings.pickle", "rb") as f:
 
 
 def verify_face(image, firebase_uid, session_id):
+
+    is_live = check_liveness(image)
+
+    if not is_live:
+        return {
+            "verified": False,
+            "message": "Spoof Detected"
+        }
 
     rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
