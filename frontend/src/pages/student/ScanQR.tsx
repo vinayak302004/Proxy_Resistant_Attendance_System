@@ -12,7 +12,7 @@ export default function ScanQR() {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannedRef = useRef(false);
   const [sessionId, setSessionId] = useState("");
-  const [qrToken, setQrToken] = useState("");
+  const [, setQrToken] = useState("");
 
   // 🛑 STOP SCANNER + CAMERA
   const stopScanner = async () => {
@@ -128,7 +128,7 @@ export default function ScanQR() {
     <SelfieCapture
         sessionId={sessionId}
         autoCapture={true}
-        onVerified={(name) => {
+        onVerified={() => {
             alert("✅ Attendance Marked");
             setShowSelfie(false);
             navigate("/profile");

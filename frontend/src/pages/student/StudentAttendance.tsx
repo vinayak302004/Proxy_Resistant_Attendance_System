@@ -16,7 +16,7 @@ export default function StudentAttendance() {
   const [selectedSubject, setSelectedSubject] = useState("");
   const [loading, setLoading] = useState(true);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [summary, setSummary] = useState({
+  const [, setSummary] = useState({
     total: 0,
     present: 0,
     absent: 0,
