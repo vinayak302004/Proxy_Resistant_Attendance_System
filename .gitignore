@@ -38,11 +38,7 @@ coverage/
 
 backend/attendance/
 backend/encodings.pickle
-
 backend/attendance/*.csv
-
 backend/dataset/
-
 backend/database.py
-
 backend/venv/
