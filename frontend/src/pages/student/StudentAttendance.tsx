@@ -31,18 +31,44 @@ export default function StudentAttendance() {
 
   const loadAttendance = async () => {
     try {
-      const uid = localStorage.getItem("uid");
-      const res = await fetch(`${API_URL}/student/attendance/${uid}`);
+      const prn = localStorage.getItem("prn");
+
+      if (!prn) {
+        console.error("Student PRN not found in localStorage");
+        setLoading(false);
+        return;
+      }
+
+      console.log("Loading attendance for PRN:", prn);
+
+      const res = await fetch(
+        `${API_URL}/student/attendance/${encodeURIComponent(prn)}`
+      );
+
       const data = await res.json();
 
+      console.log("Attendance API response:", data);
+
       if (data.success) {
-        setAttendance(data.attendance);
-        setSummary(data.summary);
+        setAttendance(data.attendance || []);
+        setSummary(
+          data.summary || {
+            total: 0,
+            present: 0,
+            absent: 0,
+            percentage: 0,
+          }
+        );
+      } else {
+        console.error("Attendance API error:", data.message);
+        setAttendance([]);
       }
     } catch (err) {
-      console.log(err);
+      console.error("Failed to load attendance:", err);
+      setAttendance([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const subjects = [...new Set(attendance.map((item) => item.subject))];
@@ -145,13 +171,13 @@ export default function StudentAttendance() {
                     <td>{item.attendance_time}</td>
                     <td>
                       <span
-                        className={
-                          item.status === "Present"
-                            ? "status present"
-                            : "status absent"
-                        }
+                        className={`status ${
+                          item.status?.trim().toLowerCase() === "present"
+                            ? "present"
+                            : "absent"
+                        }`}
                       >
-                        {item.status}
+                        {item.status?.trim() || "Absent"}
                       </span>
                     </td>
                   </tr>

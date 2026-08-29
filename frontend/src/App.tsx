@@ -1,18 +1,29 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "./pages/auth/Login";
+
 import Dashboard from "./pages/teacher/Dashboard";
+import TeacherAttendance from "./pages/teacher/TeacherAttendance";
+
 import ScanQR from "./pages/student/ScanQR";
 import Profile from "./pages/student/Profile";
-import TeacherAttendance from "./pages/teacher/TeacherAttendance";
 import StudentAttendance from "./pages/student/StudentAttendance";
+
+import AdminDashboard from "./pages/admin/Dashboard";
 
 /* 🔐 Route Protection */
 const PrivateRoute = ({ children, role }: any) => {
   const userRole = localStorage.getItem("role");
 
-  if (!userRole) return <Navigate to="/" />;
-  if (role && userRole !== role) return <Navigate to="/" />;
+  // User is not logged in
+  if (!userRole) {
+    return <Navigate to="/" replace />;
+  }
+
+  // User does not have permission
+  if (role && userRole !== role) {
+    return <Navigate to="/" replace />;
+  }
 
   return children;
 };
@@ -22,10 +33,12 @@ function App() {
     <BrowserRouter>
       <Routes>
 
-        {/* LOGIN */}
+        {/* ================= LOGIN ================= */}
         <Route path="/" element={<Login />} />
 
-        {/* Teacher */}
+
+        {/* ================= TEACHER ================= */}
+
         <Route
           path="/teacher"
           element={
@@ -44,7 +57,9 @@ function App() {
           }
         />
 
-        {/* Student */}
+
+        {/* ================= STUDENT ================= */}
+
         <Route
           path="/profile"
           element={
@@ -65,10 +80,32 @@ function App() {
 
         <Route
           path="/student-attendance"
-          element={<StudentAttendance />}
+          element={
+            <PrivateRoute role="student">
+              <StudentAttendance />
+            </PrivateRoute>
+          }
         />
 
-        <Route path="*" element={<Navigate to="/" />} />
+
+        {/* ================= ADMIN ================= */}
+
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute role="admin">
+              <AdminDashboard />
+            </PrivateRoute>
+          }
+        />
+
+
+        {/* ================= INVALID ROUTE ================= */}
+
+        <Route
+          path="*"
+          element={<Navigate to="/" replace />}
+        />
 
       </Routes>
     </BrowserRouter>

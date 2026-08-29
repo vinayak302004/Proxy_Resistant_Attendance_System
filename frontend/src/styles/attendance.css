@@ -170,30 +170,26 @@ tbody tr:hover{
 
 }
 
-.status{
-
-    padding:6px 14px;
-
-    border-radius:20px;
-
-    color:white;
-
-    font-weight:bold;
-
-    font-size:13px;
-
+.status {
+    width: 43px;
+    display: inline-block;
+    padding: 7px 16px;
+    border-radius: 20px;
+    color: #ffffff !important;
+    font-weight: 700;
+    font-size: 13px;
+    line-height: 1.2;
+    text-align: center;
 }
 
-.present{
-
-    background:#16a34a;
-
+.status.present {
+    background: #16a34a !important;
+    color: #ffffff !important;
 }
 
-.absent{
-
-    background:#dc2626;
-
+.status.absent {
+    background: #dc2626 !important;
+    color: #ffffff !important;
 }
 
 @media(max-width:900px){

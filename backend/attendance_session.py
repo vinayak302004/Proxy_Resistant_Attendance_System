@@ -4,7 +4,7 @@ from datetime import datetime
 from database import get_db_connection
 
 
-def start_session(teacher_uid, department, year, subject, lat, lng):
+def start_session(teacher_id, department, year, subject, lat, lng):
 
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
@@ -16,43 +16,39 @@ def start_session(teacher_uid, department, year, subject, lat, lng):
     now = datetime.now().time()
 
     cursor.execute("""
-        INSERT INTO attendance_sessions(
-
+        INSERT INTO attendance_sessions
+        (
             session_id,
             qr_token,
-            teacher_uid,
+            teacher_id,
             subject,
             department,
             year,
             lecture_date,
             start_time,
             status
-
         )
-
-        VALUES(
-        %s,
-        %s,
-        %s,
-        %s,
-        %s,
-        %s,
-        %s,
-        %s,
-        'ACTIVE'
+        VALUES
+        (
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            %s,
+            'ACTIVE'
         )
-
     """, (
-
         session_id,
         qr_token,
-        teacher_uid,
+        teacher_id,
         subject,
         department,
         year,
         today,
         now
-
     ))
 
     conn.commit()

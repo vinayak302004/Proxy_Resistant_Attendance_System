@@ -41,4 +41,6 @@ backend/encodings.pickle
 backend/attendance/*.csv
 backend/dataset/
 backend/database.py
-backend/venv/
+backend/venv/backend/serviceAccountKey.json
+backend/__pycache__/
+*.pyc
