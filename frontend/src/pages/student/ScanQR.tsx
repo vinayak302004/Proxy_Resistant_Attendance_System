@@ -3,6 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 
 import { useNavigate } from "react-router-dom";
 import SelfieCapture from "../../components/SelfieCapture";
+import { API_URL } from "../../config";
 
 export default function ScanQR() {
   const navigate = useNavigate();
@@ -67,18 +68,26 @@ export default function ScanQR() {
     try {
       const studentUid = localStorage.getItem("uid");
 
+      const studentPrn = localStorage.getItem("prn");
+
+      if (!studentPrn) {
+        alert("Student PRN not found. Please login again.");
+        navigate("/profile");
+        return;
+      }
+
       const response = await fetch(
-        `http://${window.location.hostname}:5000/attendance/verify`,
+        `${API_URL}/attendance/verify`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-              qr_token: currentQrToken,
-              student_uid: studentUid,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
+            qr_token: currentQrToken,
+            prn: studentPrn,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
           }),
         }
       );
