@@ -85,36 +85,38 @@ export default function Dashboard() {
 
   const navigate = useNavigate();
 
-  // Load TEacher Profile
-  useEffect(() => {
-    if (localStorage.getItem("role") !== "teacher") {
-      window.location.href = "/";
-      return;
+  // Load Teacher Profile
+useEffect(() => {
+  if (localStorage.getItem("role") !== "teacher") {
+    window.location.href = "/";
+    return;
+  }
+
+  const teacherId = localStorage.getItem("teacher_id");
+
+  if (teacherId) {
+    fetch(
+      `http://${window.location.hostname}:5000/teacher/profile/${teacherId}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        setTeacher(data);
+      })
+      .catch((err) => {
+        console.error("Failed to load teacher profile:", err);
+      });
+  }
+
+  return () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
     }
-    const uid = localStorage.getItem("uid");
 
-    if (uid) {
-
-        fetch(`http://${window.location.hostname}:5000/teacher/profile/${uid}`)
-            .then(res => res.json())
-            .then(data => {
-                setTeacher(data);
-            })
-            .catch(err => console.log(err));
-
+    if (liveIntervalRef.current) {
+      clearInterval(liveIntervalRef.current);
     }
-
-    
-    return () => {
-      if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-      }
-
-      if (liveIntervalRef.current) {
-          clearInterval(liveIntervalRef.current);
-}
-};
-  }, []);
+  };
+}, []);
 
   // Start Attendance
 const startSession = () => {
@@ -129,7 +131,12 @@ const startSession = () => {
       const lng = pos.coords.longitude;
 
       try {
-        const teacherUid = localStorage.getItem("uid");
+        const teacherId = localStorage.getItem("teacher_id");
+
+        if (!teacherId) {
+          alert("❌ Teacher ID not found. Please login again.");
+          return;
+        }
 
         const response = await fetch(
           `http://${window.location.hostname}:5000/attendance/start`,
@@ -139,7 +146,7 @@ const startSession = () => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              teacher_uid: teacherUid,
+              teacher_id: teacherId,
               department: selectedDepartment,
               year: selectedYear,
               subject: selectedSubject,
@@ -180,7 +187,7 @@ const startSession = () => {
                           "Content-Type": "application/json",
                       },
                       body: JSON.stringify({
-                          session_id: result.session_id,
+                          session_id: currentSession,
                       }),
                   }
               );

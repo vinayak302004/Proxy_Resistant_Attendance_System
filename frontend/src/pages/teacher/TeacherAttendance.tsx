@@ -43,8 +43,17 @@ export default function TeacherAttendance() {
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const teacherUid = localStorage.getItem("uid");
-      const res = await fetch(`${API_URL}/teacher/sessions/${teacherUid}`);
+      const teacherId = localStorage.getItem("teacher_id");
+
+      if (!teacherId) {
+        console.error("Teacher ID not found.");
+        setSessions([]);
+        return;
+      }
+
+      const res = await fetch(
+        `${API_URL}/teacher/sessions/${teacherId}`
+      );
       const data = await res.json();
 
       if (data.success && data.sessions.length > 0) {

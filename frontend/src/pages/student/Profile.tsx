@@ -311,12 +311,6 @@ export default function Profile() {
 
 
             <p>
-              <b>Phone:</b>{" "}
-              {student.phone}
-            </p>
-
-
-            <p>
               <b>Year:</b>{" "}
               {student.year}
             </p>
