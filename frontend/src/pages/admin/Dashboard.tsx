@@ -1,5 +1,4 @@
 import { useState } from "react";
-
 import "../../styles/admin.css";
 
 import {
@@ -45,6 +44,8 @@ const auth = getAuth(app);
 
 export default function AdminDashboard() {
 
+  const adminName = localStorage.getItem("full_name") || "Admin";
+
   const [formData, setFormData] =
     useState({
 
@@ -70,13 +71,21 @@ export default function AdminDashboard() {
 
     });
 
-
+  const [photo, setPhoto] = useState<File | null>(null);
   const [loading, setLoading] =
     useState(false);
 
 
   const [message, setMessage] =
     useState("");
+
+  const handlePhotoChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0] || null;
+
+    setPhoto(file);
+  };
 
 
   const handleChange = (
@@ -120,31 +129,21 @@ export default function AdminDashboard() {
     // =====================================
 
     if (
-
       !formData.prn ||
-
       !formData.full_name ||
-
       !formData.email ||
-
       !formData.password ||
-
       !formData.phone ||
-
       !formData.year ||
-
       !formData.branch ||
-
-      !formData.division
-
+      !formData.division ||
+      !photo
     ) {
-
       setMessage(
-        "Please fill all required fields."
+        "Please fill all required fields and select a student photo."
       );
 
       return;
-
     }
 
 
@@ -197,6 +196,58 @@ export default function AdminDashboard() {
       // Send To Flask
       // =====================================
 
+      const formDataToSend = new FormData();
+
+      formDataToSend.append(
+        "prn",
+        formData.prn
+      );
+
+      formDataToSend.append(
+        "full_name",
+        formData.full_name
+      );
+
+      formDataToSend.append(
+        "email",
+        formData.email
+      );
+
+      formDataToSend.append(
+        "password",
+        formData.password
+      );
+
+      formDataToSend.append(
+        "phone",
+        formData.phone
+      );
+
+      formDataToSend.append(
+        "year",
+        formData.year
+      );
+
+      formDataToSend.append(
+        "branch",
+        formData.branch
+      );
+
+      formDataToSend.append(
+        "division",
+        formData.division
+      );
+
+      formDataToSend.append(
+        "gender",
+        formData.gender
+      );
+
+      formDataToSend.append(
+        "photo",
+        photo
+      );
+
       const response =
         await fetch(
           "http://localhost:5000/api/students",
@@ -206,18 +257,13 @@ export default function AdminDashboard() {
 
             headers: {
 
-              "Content-Type":
-                "application/json",
-
               "Authorization":
                 `Bearer ${token}`
 
             },
 
             body:
-              JSON.stringify(
-                formData
-              )
+              formDataToSend
 
           }
         );
@@ -275,6 +321,7 @@ export default function AdminDashboard() {
         face_folder: ""
 
       });
+      setPhoto(null);
 
     }
 
@@ -367,7 +414,7 @@ export default function AdminDashboard() {
           </h2>
 
           <h2 className="admin-name">
-            Admin
+            {adminName}
           </h2>
 
 
@@ -774,33 +821,28 @@ export default function AdminDashboard() {
             </div>
 
 
-            {/* FACE FOLDER */}
+            {/* STUDENT PHOTO */}
 
             <div className="admin-field">
 
               <label>
-                Face Folder
+                Student Photo
+                <span>*</span>
               </label>
 
               <input
-
-                type="text"
-
-                name="face_folder"
-
-                value={
-                  formData.face_folder
-                }
-
-                onChange={
-                  handleChange
-                }
-
-                placeholder="Example: faces/230701001"
-
+                type="file"
+                accept="image/*"
+                onChange={handlePhotoChange}
                 disabled={loading}
-
+                required
               />
+
+              {photo && (
+                <p className="selected-photo">
+                  Selected: {photo.name}
+                </p>
+              )}
 
             </div>
 
