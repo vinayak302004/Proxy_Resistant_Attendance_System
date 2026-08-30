@@ -411,7 +411,7 @@ def add_student():
         # Request Data
         # ========================================
 
-        data = request.get_json()
+        data = request.form
 
         if not data:
 
@@ -459,11 +459,110 @@ def add_student():
         if gender:
             gender = str(gender).strip()
 
-        face_folder = data.get("face_folder")
 
-        if face_folder:
-            face_folder = str(face_folder).strip()
+        # ========================================
+        # Student Photo
+        # ========================================
 
+        photo = request.files.get("photo")
+
+        if not photo:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student photo is required."
+            }), 400
+
+        # ========================================
+        # CREATE FACE DATASET FOLDER
+        # ========================================
+
+        dataset_path = os.path.join(
+            os.path.dirname(__file__),
+            "dataset"
+        )
+
+        # Create dataset folder if it does not exist
+        os.makedirs(
+            dataset_path,
+            exist_ok=True
+        )
+
+
+        # ========================================
+        # PRN FOLDER
+        # ========================================
+
+        student_folder = os.path.join(
+            dataset_path,
+            prn
+        )
+
+        # Create PRN folder
+        os.makedirs(
+            student_folder,
+            exist_ok=True
+        )
+
+
+        # ========================================
+        # SAVE STUDENT PHOTO
+        # ========================================
+
+        original_filename = photo.filename
+
+        if not original_filename:
+
+            return jsonify({
+                "success": False,
+                "message": "Invalid photo filename."
+            }), 400
+
+
+        # Get extension
+        extension = os.path.splitext(
+            original_filename
+        )[1].lower()
+
+
+        # Allow only image formats
+        allowed_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        }
+
+        if extension not in allowed_extensions:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Only JPG, JPEG, PNG and WEBP images are allowed."
+            }), 400
+
+
+        # Always save as image 1
+        image_filename = "image_1" + extension
+
+        image_path = os.path.join(
+            student_folder,
+            image_filename
+        )
+
+
+        photo.save(image_path)
+
+
+        print(
+            "Student face image saved:",
+            image_path
+        )
+
+
+        # Value stored in MySQL
+        face_folder = prn
 
         # ========================================
         # Validation
