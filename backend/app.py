@@ -2244,7 +2244,353 @@ def verify_face_api():
                 str(e)
 
         }), 500
-    
+
+
+# ============================================================
+# MARK ATTENDANCE
+# ============================================================
+
+@app.route(
+    "/attendance/mark",
+    methods=["POST"]
+)
+def attendance_mark():
+
+    conn = None
+    cursor = None
+
+    try:
+
+        # ====================================================
+        # GET REQUEST DATA
+        # ====================================================
+
+        data = request.get_json()
+
+        if not data:
+
+            return jsonify({
+                "success": False,
+                "message": "No attendance data received."
+            }), 400
+
+
+        prn = str(
+            data.get("prn", "")
+        ).strip()
+
+        session_id = str(
+            data.get("session_id", "")
+        ).strip()
+
+
+        # ====================================================
+        # VALIDATE PRN
+        # ====================================================
+
+        if not prn:
+
+            return jsonify({
+                "success": False,
+                "message": "PRN is required."
+            }), 400
+
+
+        # ====================================================
+        # VALIDATE SESSION
+        # ====================================================
+
+        if not session_id:
+
+            return jsonify({
+                "success": False,
+                "message": "Session ID is required."
+            }), 400
+
+
+        print("============================================")
+        print("MARK ATTENDANCE")
+        print("PRN:", prn)
+        print("Session ID:", session_id)
+        print("============================================")
+
+
+        # ====================================================
+        # DATABASE CONNECTION
+        # ====================================================
+
+        conn = get_db_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+
+        # ====================================================
+        # CHECK STUDENT
+        # ====================================================
+
+        cursor.execute(
+            """
+            SELECT
+                prn,
+                full_name,
+                branch,
+                year
+            FROM students
+            WHERE prn = %s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+        student = cursor.fetchone()
+
+
+        if not student:
+
+            return jsonify({
+                "success": False,
+                "message": "Student not found."
+            }), 404
+
+
+        # ====================================================
+        # CHECK SESSION
+        # ====================================================
+
+        cursor.execute(
+            """
+            SELECT
+                session_id,
+                teacher_id,
+                subject,
+                department,
+                year,
+                lecture_date,
+                status
+            FROM attendance_sessions
+            WHERE session_id = %s
+            LIMIT 1
+            """,
+            (session_id,)
+        )
+
+        session = cursor.fetchone()
+
+
+        if not session:
+
+            return jsonify({
+                "success": False,
+                "message": "Attendance session not found."
+            }), 404
+
+
+        # ====================================================
+        # CHECK SESSION ACTIVE
+        # ====================================================
+
+        if session["status"] != "ACTIVE":
+
+            return jsonify({
+                "success": False,
+                "message": "Attendance session is no longer active."
+            }), 400
+
+
+        # ====================================================
+        # CHECK STUDENT BELONGS TO CLASS
+        # ====================================================
+
+        if (
+            str(student["branch"]).strip()
+            != str(session["department"]).strip()
+        ):
+
+            return jsonify({
+                "success": False,
+                "message": "Student does not belong to this department."
+            }), 403
+
+
+        if (
+            str(student["year"]).strip()
+            != str(session["year"]).strip()
+        ):
+
+            return jsonify({
+                "success": False,
+                "message": "Student does not belong to this class."
+            }), 403
+
+
+        # ====================================================
+        # CHECK DUPLICATE ATTENDANCE
+        # ====================================================
+
+        cursor.execute(
+            """
+            SELECT
+                prn
+            FROM attendance
+            WHERE session_id = %s
+              AND prn = %s
+            LIMIT 1
+            """,
+            (
+                session_id,
+                prn
+            )
+        )
+
+        existing = cursor.fetchone()
+
+
+        if existing:
+
+            return jsonify({
+
+                "success": True,
+
+                "message":
+                    "Attendance already marked.",
+
+                "already_marked": True,
+
+                "prn":
+                    prn,
+
+                "name":
+                    student["full_name"]
+
+            }), 200
+
+
+        # ====================================================
+        # MARK ATTENDANCE
+        # ====================================================
+
+        cursor.execute(
+            """
+            INSERT INTO attendance
+            (
+                session_id,
+                teacher_id,
+                student_name,
+                teacher_name,
+                prn,
+                subject,
+                department,
+                year,
+                attendance_date,
+                attendance_time,
+                status
+            )
+            VALUES
+            (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                NOW(),
+                'Present'
+            )
+            """,
+            (
+                session_id,
+                session["teacher_id"],
+                student["full_name"],
+                None,
+                prn,
+                session["subject"],
+                session["department"],
+                session["year"],
+                session["lecture_date"]
+            )
+        )
+
+
+        conn.commit()
+
+
+        # ====================================================
+        # SUCCESS
+        # ====================================================
+
+        print("ATTENDANCE MARKED SUCCESSFULLY")
+        print("PRN:", prn)
+        print("Name:", student["full_name"])
+
+
+        return jsonify({
+
+            "success": True,
+
+            "message":
+                "Attendance marked successfully.",
+
+            "already_marked":
+                False,
+
+            "prn":
+                prn,
+
+            "name":
+                student["full_name"],
+
+            "session_id":
+                session_id
+
+        }), 201
+
+
+    except Exception as e:
+
+        print(
+            "ATTENDANCE MARK ERROR:",
+            str(e)
+        )
+
+
+        try:
+
+            if conn:
+                conn.rollback()
+
+        except Exception:
+            pass
+
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                str(e)
+
+        }), 500
+
+
+    finally:
+
+        try:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+        except Exception:
+            pass
+
+
 # ============================================================
 # RUN
 # ============================================================
