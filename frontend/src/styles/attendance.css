@@ -257,3 +257,121 @@ min-width:900px;
 .filter-card select:focus{
     border-color:#2563eb;
 }
+
+/* =========================================
+   MONTHLY ATTENDANCE REPORT
+========================================= */
+
+.monthly-report-card {
+  background: white;
+  border-radius: 12px;
+  margin-bottom: 25px;
+  padding: 25px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.06);
+}
+
+.monthly-report-header {
+  margin-bottom: 20px;
+}
+
+.monthly-report-header h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+}
+
+.monthly-report-header p {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.monthly-report-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.month-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.month-selector label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.month-selector select {
+  min-width: 200px;
+  padding: 11px 14px;
+  border: 1px solid #d0d7de;
+  border-radius: 7px;
+  background: white;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.report-buttons {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.excel-btn,
+.defaulter-btn {
+  border: none;
+  border-radius: 7px;
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.excel-btn {
+  background: #217346;
+  color: white;
+}
+
+.excel-btn:hover {
+  background: #185c37;
+}
+
+.defaulter-btn {
+  background: #d93025;
+  color: white;
+}
+
+.defaulter-btn:hover {
+  background: #b42318;
+}
+
+.excel-btn:disabled,
+.defaulter-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+
+  .monthly-report-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .month-selector select {
+    width: 100%;
+  }
+
+  .report-buttons {
+    flex-direction: column;
+  }
+
+  .excel-btn,
+  .defaulter-btn {
+    width: 100%;
+  }
+
+}

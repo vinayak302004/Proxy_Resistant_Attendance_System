@@ -1,5 +1,10 @@
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
+from io import BytesIO
+
+from openpyxl import Workbook
+from openpyxl.styles import Font, Alignment
+from openpyxl.utils import get_column_letter
 
 import cv2
 import numpy as np
@@ -2272,6 +2277,882 @@ def attendance_mark():
 
         except Exception:
             pass
+
+# ============================================================
+# MONTHLY ATTENDANCE EXCEL
+# ============================================================
+
+@app.route(
+    "/teacher/monthly-attendance/<teacher_id>/excel",
+    methods=["GET"]
+)
+def monthly_attendance_excel(teacher_id):
+
+    try:
+
+        month = request.args.get(
+            "month",
+            ""
+        ).strip()
+
+
+        if not month:
+
+            return jsonify({
+                "success": False,
+                "message": "Month is required. Example: 2026-09"
+            }), 400
+
+
+        teacher, report = get_monthly_attendance_data(
+            teacher_id,
+            month
+        )
+
+
+        # ----------------------------------------------------
+        # Create Excel workbook
+        # ----------------------------------------------------
+
+        workbook = Workbook()
+
+        worksheet = workbook.active
+
+        worksheet.title = "Monthly Attendance"
+
+
+        # ----------------------------------------------------
+        # Title
+        # ----------------------------------------------------
+
+        worksheet.merge_cells(
+            "A1:H1"
+        )
+
+        worksheet["A1"] = (
+            f"Monthly Attendance Report - {month}"
+        )
+
+        worksheet["A1"].font = Font(
+            bold=True,
+            size=16
+        )
+
+        worksheet["A1"].alignment = Alignment(
+            horizontal="center"
+        )
+
+
+        worksheet.merge_cells(
+            "A2:H2"
+        )
+
+        worksheet["A2"] = (
+            f"Teacher: {teacher['full_name']}"
+        )
+
+        worksheet["A2"].font = Font(
+            bold=True
+        )
+
+
+        # ----------------------------------------------------
+        # Headers
+        # ----------------------------------------------------
+
+        headers = [
+            "PRN",
+            "Student Name",
+            "Branch",
+            "Year",
+            "Total Lectures",
+            "Present",
+            "Absent",
+            "Attendance %"
+        ]
+
+
+        header_row = 4
+
+
+        for column, header in enumerate(
+            headers,
+            start=1
+        ):
+
+            cell = worksheet.cell(
+                row=header_row,
+                column=column
+            )
+
+            cell.value = header
+
+            cell.font = Font(
+                bold=True
+            )
+
+            cell.alignment = Alignment(
+                horizontal="center"
+            )
+
+
+        # ----------------------------------------------------
+        # Data
+        # ----------------------------------------------------
+
+        for row_index, student in enumerate(
+            report,
+            start=5
+        ):
+
+            worksheet.cell(
+                row=row_index,
+                column=1,
+                value=student["prn"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=2,
+                value=student["student_name"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=3,
+                value=student["branch"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=4,
+                value=student["year"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=5,
+                value=student["total_lectures"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=6,
+                value=student["present"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=7,
+                value=student["absent"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=8,
+                value=f"{student['percentage']}%"
+            )
+
+
+        # ----------------------------------------------------
+        # Auto column width
+        # ----------------------------------------------------
+
+        for column_cells in worksheet.columns:
+
+            max_length = 0
+
+            column_letter = get_column_letter(
+                column_cells[0].column
+            )
+
+
+            for cell in column_cells:
+
+                if cell.value is not None:
+
+                    max_length = max(
+                        max_length,
+                        len(str(cell.value))
+                    )
+
+
+            worksheet.column_dimensions[
+                column_letter
+            ].width = min(
+                max_length + 3,
+                35
+            )
+
+
+        # ----------------------------------------------------
+        # Freeze header
+        # ----------------------------------------------------
+
+        worksheet.freeze_panes = "A5"
+
+
+        # ----------------------------------------------------
+        # Create response
+        # ----------------------------------------------------
+
+        output = BytesIO()
+
+        workbook.save(output)
+
+        output.seek(0)
+
+
+        filename = (
+            f"Monthly_Attendance_{month}.xlsx"
+        )
+
+
+        from flask import send_file
+
+
+        return send_file(
+
+            output,
+
+            as_attachment=True,
+
+            download_name=filename,
+
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
+        )
+
+
+    except Exception as e:
+
+        print(
+            "MONTHLY ATTENDANCE EXCEL ERROR:",
+            str(e)
+        )
+
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                str(e)
+
+        }), 500
+
+# ============================================================
+# MONTHLY DEFAULTER EXCEL
+# ============================================================
+
+@app.route(
+    "/teacher/monthly-defaulters/<teacher_id>/excel",
+    methods=["GET"]
+)
+def monthly_defaulters_excel(teacher_id):
+
+    try:
+
+        month = request.args.get(
+            "month",
+            ""
+        ).strip()
+
+
+        if not month:
+
+            return jsonify({
+                "success": False,
+                "message": "Month is required. Example: 2026-09"
+            }), 400
+
+
+        teacher, report = get_monthly_attendance_data(
+            teacher_id,
+            month
+        )
+
+
+        # ----------------------------------------------------
+        # Only students below 75%
+        # ----------------------------------------------------
+
+        defaulters = [
+
+            student
+
+            for student in report
+
+            if student["percentage"] < 75
+
+        ]
+
+
+        # ----------------------------------------------------
+        # Create workbook
+        # ----------------------------------------------------
+
+        workbook = Workbook()
+
+        worksheet = workbook.active
+
+        worksheet.title = "Defaulter List"
+
+
+        # ----------------------------------------------------
+        # Title
+        # ----------------------------------------------------
+
+        worksheet.merge_cells(
+            "A1:H1"
+        )
+
+        worksheet["A1"] = (
+            f"Defaulter Attendance List - {month}"
+        )
+
+        worksheet["A1"].font = Font(
+            bold=True,
+            size=16
+        )
+
+        worksheet["A1"].alignment = Alignment(
+            horizontal="center"
+        )
+
+
+        worksheet.merge_cells(
+            "A2:H2"
+        )
+
+        worksheet["A2"] = (
+            f"Teacher: {teacher['full_name']} | "
+            f"Defaulter Threshold: Below 75%"
+        )
+
+        worksheet["A2"].font = Font(
+            bold=True
+        )
+
+
+        # ----------------------------------------------------
+        # Headers
+        # ----------------------------------------------------
+
+        headers = [
+            "PRN",
+            "Student Name",
+            "Branch",
+            "Year",
+            "Total Lectures",
+            "Present",
+            "Absent",
+            "Attendance %"
+        ]
+
+
+        for column, header in enumerate(
+            headers,
+            start=1
+        ):
+
+            cell = worksheet.cell(
+                row=4,
+                column=column
+            )
+
+            cell.value = header
+
+            cell.font = Font(
+                bold=True
+            )
+
+            cell.alignment = Alignment(
+                horizontal="center"
+            )
+
+
+        # ----------------------------------------------------
+        # Defaulter data
+        # ----------------------------------------------------
+
+        for row_index, student in enumerate(
+            defaulters,
+            start=5
+        ):
+
+            worksheet.cell(
+                row=row_index,
+                column=1,
+                value=student["prn"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=2,
+                value=student["student_name"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=3,
+                value=student["branch"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=4,
+                value=student["year"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=5,
+                value=student["total_lectures"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=6,
+                value=student["present"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=7,
+                value=student["absent"]
+            )
+
+            worksheet.cell(
+                row=row_index,
+                column=8,
+                value=f"{student['percentage']}%"
+            )
+
+
+        # ----------------------------------------------------
+        # If nobody is a defaulter
+        # ----------------------------------------------------
+
+        if len(defaulters) == 0:
+
+            worksheet.cell(
+                row=5,
+                column=1,
+                value="No defaulters found."
+            )
+
+
+        # ----------------------------------------------------
+        # Auto column width
+        # ----------------------------------------------------
+
+        for column_cells in worksheet.columns:
+
+            max_length = 0
+
+            column_letter = get_column_letter(
+                column_cells[0].column
+            )
+
+
+            for cell in column_cells:
+
+                if cell.value is not None:
+
+                    max_length = max(
+                        max_length,
+                        len(str(cell.value))
+                    )
+
+
+            worksheet.column_dimensions[
+                column_letter
+            ].width = min(
+                max_length + 3,
+                35
+            )
+
+
+        worksheet.freeze_panes = "A5"
+
+
+        # ----------------------------------------------------
+        # Send Excel
+        # ----------------------------------------------------
+
+        output = BytesIO()
+
+        workbook.save(output)
+
+        output.seek(0)
+
+
+        filename = (
+            f"Defaulter_Attendance_{month}.xlsx"
+        )
+
+
+        from flask import send_file
+
+
+        return send_file(
+
+            output,
+
+            as_attachment=True,
+
+            download_name=filename,
+
+            mimetype=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            )
+        )
+
+
+    except Exception as e:
+
+        print(
+            "DEFAULTER EXCEL ERROR:",
+            str(e)
+        )
+
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                str(e)
+
+        }), 500
+    
+    
+# ============================================================
+# MONTHLY ATTENDANCE REPORT HELPER
+# ============================================================
+
+def get_monthly_attendance_data(teacher_id, month):
+    """
+    Get monthly attendance for all students taught by a teacher.
+
+    month format:
+        YYYY-MM
+
+    Example:
+        2026-09
+    """
+
+    conn = None
+    cursor = None
+
+    try:
+
+        # ----------------------------------------------------
+        # Validate month
+        # ----------------------------------------------------
+
+        try:
+            month_date = datetime.strptime(
+                month,
+                "%Y-%m"
+            ).date()
+
+        except ValueError:
+
+            raise ValueError(
+                "Invalid month format. Use YYYY-MM."
+            )
+
+
+        # First day of selected month
+        first_day = month_date.replace(day=1)
+
+
+        # First day of next month
+        if first_day.month == 12:
+
+            next_month = first_day.replace(
+                year=first_day.year + 1,
+                month=1
+            )
+
+        else:
+
+            next_month = first_day.replace(
+                month=first_day.month + 1
+            )
+
+
+        conn = get_db_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+
+        # ----------------------------------------------------
+        # Get teacher
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                teacher_id,
+                full_name,
+                email,
+                department
+            FROM teachers
+            WHERE teacher_id = %s
+            LIMIT 1
+            """,
+            (teacher_id,)
+        )
+
+        teacher = cursor.fetchone()
+
+
+        if not teacher:
+
+            raise ValueError(
+                "Teacher not found."
+            )
+
+
+        # ----------------------------------------------------
+        # Existing sessions may contain either:
+        #
+        # 1. teacher_id
+        # 2. old Firebase UID
+        #
+        # Support both.
+        # ----------------------------------------------------
+
+        teacher_ids = [
+            str(teacher_id).strip()
+        ]
+
+
+        try:
+
+            teacher_email = str(
+                teacher["email"]
+            ).strip().lower()
+
+
+            firebase_user = auth.get_user_by_email(
+                teacher_email
+            )
+
+
+            firebase_uid = firebase_user.uid
+
+
+            if firebase_uid not in teacher_ids:
+
+                teacher_ids.append(
+                    firebase_uid
+                )
+
+        except Exception as firebase_error:
+
+            print(
+                "Monthly report Firebase lookup skipped:",
+                firebase_error
+            )
+
+
+        # ----------------------------------------------------
+        # Build dynamic IN placeholders
+        # ----------------------------------------------------
+
+        placeholders = ",".join(
+            ["%s"] * len(teacher_ids)
+        )
+
+
+        # ----------------------------------------------------
+        # IMPORTANT:
+        #
+        # A student is counted only for sessions matching
+        # their branch + year.
+        #
+        # Missing attendance record = Absent.
+        # ----------------------------------------------------
+
+        query = f"""
+            SELECT
+
+                s.prn,
+
+                s.full_name,
+
+                s.branch,
+
+                s.year,
+
+                COUNT(
+                    DISTINCT ses.session_id
+                ) AS total_lectures,
+
+                COUNT(
+                    DISTINCT CASE
+                        WHEN a.prn IS NOT NULL
+                        THEN ses.session_id
+                    END
+                ) AS present
+
+            FROM students s
+
+            INNER JOIN attendance_sessions ses
+
+                ON TRIM(s.branch)
+                    = TRIM(ses.department)
+
+                AND TRIM(s.year)
+                    = TRIM(ses.year)
+
+
+            LEFT JOIN attendance a
+
+                ON a.session_id = ses.session_id
+
+                AND TRIM(a.prn)
+                    = TRIM(s.prn)
+
+
+            WHERE ses.teacher_id IN ({placeholders})
+
+                AND ses.lecture_date >= %s
+
+                AND ses.lecture_date < %s
+
+
+            GROUP BY
+
+                s.prn,
+                s.full_name,
+                s.branch,
+                s.year
+
+
+            HAVING total_lectures > 0
+
+
+            ORDER BY
+
+                s.branch ASC,
+                s.year ASC,
+                s.full_name ASC
+        """
+
+
+        params = (
+            teacher_ids
+            + [
+                first_day,
+                next_month
+            ]
+        )
+
+
+        cursor.execute(
+            query,
+            params
+        )
+
+
+        rows = cursor.fetchall()
+
+
+        # ----------------------------------------------------
+        # Calculate absent + percentage
+        # ----------------------------------------------------
+
+        report = []
+
+
+        for row in rows:
+
+            total = int(
+                row["total_lectures"] or 0
+            )
+
+            present = int(
+                row["present"] or 0
+            )
+
+            absent = total - present
+
+
+            percentage = 0
+
+
+            if total > 0:
+
+                percentage = round(
+                    (present / total) * 100,
+                    2
+                )
+
+
+            status = (
+                "Defaulter"
+                if percentage < 75
+                else "Regular"
+            )
+
+
+            report.append({
+
+                "prn":
+                    str(row["prn"]),
+
+                "student_name":
+                    row["full_name"],
+
+                "branch":
+                    row["branch"],
+
+                "year":
+                    row["year"],
+
+                "total_lectures":
+                    total,
+
+                "present":
+                    present,
+
+                "absent":
+                    absent,
+
+                "percentage":
+                    percentage,
+
+                "status":
+                    status
+            })
+
+
+        return teacher, report
+
+
+    finally:
+
+        try:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+        except Exception:
+            pass
+
 
 if __name__ == "__main__":
 
