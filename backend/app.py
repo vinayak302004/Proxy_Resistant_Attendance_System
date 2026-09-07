@@ -7,17 +7,9 @@ import numpy as np
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 
-# ============================================
-# Firebase Admin SDK
-# ============================================
-
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import auth
-
-# ============================================
-# Existing project imports
-# ============================================
 
 from attendance_session import (
     get_session,
@@ -28,11 +20,6 @@ from attendance_session import (
 
 from database import get_db_connection
 from face_verify import verify_face
-
-
-# ============================================
-# Flask App
-# ============================================
 
 app = Flask(__name__)
 
@@ -48,11 +35,6 @@ CORS(
         "Authorization"
     ]
 )
-
-
-# ============================================
-# Firebase Admin Initialization
-# ============================================
 
 SERVICE_ACCOUNT_PATH = os.path.join(
     os.path.dirname(__file__),
@@ -84,10 +66,6 @@ except Exception as e:
     )
 
 
-# ============================================
-# Helper - Verify Firebase Token
-# ============================================
-
 def verify_firebase_token():
 
     auth_header = request.headers.get("Authorization")
@@ -108,10 +86,6 @@ def verify_firebase_token():
     return decoded_token
 
 
-# ============================================
-# Home
-# ============================================
-
 @app.route("/")
 def home():
 
@@ -119,26 +93,6 @@ def home():
         "success": True,
         "message": "Proxy-Resistant Smart Attendance Backend Running"
     })
-
-
-# ============================================================
-# FIREBASE AUTH + MYSQL LOGIN
-# ============================================================
-#
-# Firebase checks the email/password on frontend.
-#
-# Then frontend sends:
-#
-# {
-#     "email": "student@gmail.com",
-#     "role": "student"
-# }
-#
-# Backend finds the student in MySQL using EMAIL.
-#
-# PRN becomes the application identifier.
-#
-# ============================================================
 
 @app.route(
     "/api/auth/login",
@@ -189,11 +143,6 @@ def api_login():
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ========================================
-        # STUDENT
-        # ========================================
 
         if role == "student":
 
@@ -246,11 +195,6 @@ def api_login():
 
             }), 200
 
-
-        # ========================================
-        # TEACHER
-        # ========================================
-
         if role == "teacher":
 
             cursor.execute(
@@ -298,10 +242,6 @@ def api_login():
 
             }), 200
 
-
-        # ========================================
-        # ADMIN
-        # ========================================
 
         if role == "admin":
 
@@ -365,62 +305,32 @@ def api_login():
         }), 500
 
 
-# ============================================================
-# ADMIN - ADD STUDENT
-# ============================================================
-#
-# Firebase:
-#     Creates authentication account only.
-#
-# MySQL:
-#     Stores complete student information.
-#
-# No firebase_uid is stored in MySQL.
-# No Firestore student document is created.
-#
-# ============================================================
-
 @app.route(
     "/api/students",
     methods=["POST"]
 )
 def add_student():
 
-    firebase_uid = None
+    created_firebase_uid = None
 
     conn = None
     cursor = None
 
-    try:
+    student_folder = None
+    image_path = None
 
-        # ========================================
-        # Verify Admin Firebase Token
-        # ========================================
+    try:
 
         decoded_token = verify_firebase_token()
 
-        admin_uid = decoded_token.get("uid")
-
-        print(
-            "Admin Firebase UID:",
-            admin_uid
-        )
-
-
-        # ========================================
-        # Request Data
-        # ========================================
-
-        data = request.form
-
-        if not data:
-
+        if not decoded_token:
             return jsonify({
                 "success": False,
-                "message":
-                    "No student data received."
-            }), 400
+                "message": "Invalid Firebase authentication."
+            }), 401
 
+
+        data = request.form
 
         prn = str(
             data.get("prn", "")
@@ -458,115 +368,8 @@ def add_student():
 
         if gender:
             gender = str(gender).strip()
-
-
-        # ========================================
-        # Student Photo
-        # ========================================
-
-        photo = request.files.get("photo")
-
-        if not photo:
-
-            return jsonify({
-                "success": False,
-                "message":
-                    "Student photo is required."
-            }), 400
-
-        # ========================================
-        # CREATE FACE DATASET FOLDER
-        # ========================================
-
-        dataset_path = os.path.join(
-            os.path.dirname(__file__),
-            "dataset"
-        )
-
-        # Create dataset folder if it does not exist
-        os.makedirs(
-            dataset_path,
-            exist_ok=True
-        )
-
-
-        # ========================================
-        # PRN FOLDER
-        # ========================================
-
-        student_folder = os.path.join(
-            dataset_path,
-            prn
-        )
-
-        # Create PRN folder
-        os.makedirs(
-            student_folder,
-            exist_ok=True
-        )
-
-
-        # ========================================
-        # SAVE STUDENT PHOTO
-        # ========================================
-
-        original_filename = photo.filename
-
-        if not original_filename:
-
-            return jsonify({
-                "success": False,
-                "message": "Invalid photo filename."
-            }), 400
-
-
-        # Get extension
-        extension = os.path.splitext(
-            original_filename
-        )[1].lower()
-
-
-        # Allow only image formats
-        allowed_extensions = {
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp"
-        }
-
-        if extension not in allowed_extensions:
-
-            return jsonify({
-                "success": False,
-                "message":
-                    "Only JPG, JPEG, PNG and WEBP images are allowed."
-            }), 400
-
-
-        # Always save as image 1
-        image_filename = "image_1" + extension
-
-        image_path = os.path.join(
-            student_folder,
-            image_filename
-        )
-
-
-        photo.save(image_path)
-
-
-        print(
-            "Student face image saved:",
-            image_path
-        )
-
-
-        # Value stored in MySQL
-        face_folder = prn
-
-        # ========================================
-        # Validation
-        # ========================================
+        else:
+            gender = None
 
         if not prn:
             return jsonify({
@@ -623,21 +426,49 @@ def add_student():
                 "message": "Division is required."
             }), 400
 
+        photo = request.files.get("photo")
 
-        # ========================================
-        # MySQL Connection
-        # ========================================
+        if not photo:
+            return jsonify({
+                "success": False,
+                "message": "Student photo is required."
+            }), 400
+
+
+        original_filename = photo.filename
+
+        if not original_filename:
+            return jsonify({
+                "success": False,
+                "message": "Invalid photo filename."
+            }), 400
+
+
+        extension = os.path.splitext(
+            original_filename
+        )[1].lower()
+
+
+        allowed_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        }
+
+
+        if extension not in allowed_extensions:
+            return jsonify({
+                "success": False,
+                "message":
+                    "Only JPG, JPEG, PNG and WEBP images are allowed."
+            }), 400
 
         conn = get_db_connection()
 
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ========================================
-        # Check Duplicate PRN
-        # ========================================
 
         cursor.execute(
             """
@@ -654,21 +485,14 @@ def add_student():
 
         existing_student = cursor.fetchone()
 
+
         if existing_student:
 
             return jsonify({
-
                 "success": False,
-
                 "message":
                     f"Student with PRN {prn} already exists."
-
             }), 409
-
-
-        # ========================================
-        # Check Duplicate Email in MySQL
-        # ========================================
 
         cursor.execute(
             """
@@ -683,44 +507,64 @@ def add_student():
         )
 
         existing_email = cursor.fetchone()
-
         if existing_email:
 
             return jsonify({
-
                 "success": False,
-
                 "message":
                     f"Student with email {email} already exists."
-
             }), 409
 
-
-        # ========================================
-        # CREATE FIREBASE AUTH ACCOUNT
-        # ========================================
-
         firebase_user = auth.create_user(
-
             email=email,
-
             password=password,
-
             display_name=full_name
-
         )
 
-        firebase_uid = firebase_user.uid
+        created_firebase_uid = firebase_user.uid
 
         print(
-            "Firebase authentication account created:",
-            firebase_uid
+            "Firebase student authentication account created."
+        )
+
+        dataset_path = os.path.join(
+            os.path.dirname(__file__),
+            "dataset"
+        )
+
+        os.makedirs(
+            dataset_path,
+            exist_ok=True
         )
 
 
-        # ========================================
-        # INSERT INTO MYSQL
-        # ========================================
+        student_folder = os.path.join(
+            dataset_path,
+            prn
+        )
+
+        os.makedirs(
+            student_folder,
+            exist_ok=True
+        )
+
+        image_filename = (
+            "image_1" + extension
+        )
+
+        image_path = os.path.join(
+            student_folder,
+            image_filename
+        )
+
+        photo.save(image_path)
+
+
+        print(
+            "Student face image saved:",
+            image_path
+        )
+        face_folder = prn
 
         cursor.execute(
             """
@@ -749,7 +593,6 @@ def add_student():
                 %s
             )
             """,
-
             (
                 prn,
                 full_name,
@@ -762,25 +605,11 @@ def add_student():
                 face_folder
             )
         )
-
-
         conn.commit()
-
-
-        # ========================================
-        # Close DB
-        # ========================================
-
         cursor.close()
         conn.close()
-
         cursor = None
         conn = None
-
-
-        # ========================================
-        # SUCCESS
-        # ========================================
 
         return jsonify({
 
@@ -822,11 +651,6 @@ def add_student():
 
         }), 201
 
-
-    # ========================================
-    # Firebase Email Exists
-    # ========================================
-
     except auth.EmailAlreadyExistsError:
 
         if cursor:
@@ -845,19 +669,12 @@ def add_student():
 
         }), 409
 
-
-    # ========================================
-    # Any Other Error
-    # ========================================
-
     except Exception as e:
 
         print(
             "ADD STUDENT ERROR:",
             str(e)
         )
-
-
         try:
 
             if conn:
@@ -866,22 +683,16 @@ def add_student():
         except Exception:
             pass
 
-
-        # ========================================
-        # Firebase Rollback
-        # ========================================
-
-        if firebase_uid:
+        if created_firebase_uid:
 
             try:
 
                 auth.delete_user(
-                    firebase_uid
+                    created_firebase_uid
                 )
 
                 print(
-                    "Firebase user rolled back:",
-                    firebase_uid
+                    "Firebase student account rolled back."
                 )
 
             except Exception as cleanup_error:
@@ -891,6 +702,26 @@ def add_student():
                     cleanup_error
                 )
 
+        try:
+
+            if image_path and os.path.exists(image_path):
+
+                os.remove(image_path)
+
+            if (
+                student_folder
+                and os.path.exists(student_folder)
+                and not os.listdir(student_folder)
+            ):
+
+                os.rmdir(student_folder)
+
+        except Exception as cleanup_error:
+
+            print(
+                "Photo cleanup error:",
+                cleanup_error
+            )
 
         try:
 
@@ -912,16 +743,6 @@ def add_student():
                 str(e)
 
         }), 500
-
-
-# ============================================================
-# STUDENT PROFILE
-# ============================================================
-#
-# IMPORTANT:
-# PRN is used instead of Firebase UID.
-#
-# ============================================================
 
 @app.route(
     "/student/profile/<prn>",
@@ -998,11 +819,7 @@ def get_student_profile(prn):
                 str(e)
 
         }), 500
-
-
-# ============================================================
-# STUDENT ATTENDANCE
-# ============================================================
+    
 @app.route("/student/attendance/<prn>", methods=["GET"])
 def student_attendance(prn):
 
@@ -1132,18 +949,6 @@ def student_attendance(prn):
         }), 500
 
 
-# ============================================================
-# TEACHER PROFILE
-# ============================================================
-#
-# IMPORTANT:
-# teacher_id is used instead of Firebase UID.
-#
-# Example:
-# /teacher/profile/E0001
-#
-# ============================================================
-
 @app.route(
     "/teacher/profile/<teacher_id>",
     methods=["GET"]
@@ -1219,11 +1024,6 @@ def get_teacher_profile(teacher_id):
 
         }), 500
 
-    
-# ============================================================
-# ATTENDANCE START
-# ============================================================
-
 @app.route(
     "/attendance/start",
     methods=["POST"]
@@ -1262,10 +1062,6 @@ def attendance_start():
 
     })
 
-
-# ============================================================
-# ATTENDANCE VERIFY
-# ============================================================
 
 @app.route(
     "/attendance/verify",
@@ -1313,10 +1109,6 @@ def attendance_verify():
     })
 
 
-# ============================================================
-# ATTENDANCE REFRESH
-# ============================================================
-
 @app.route(
     "/attendance/refresh",
     methods=["POST"]
@@ -1346,10 +1138,6 @@ def attendance_refresh():
     })
 
 
-# ============================================================
-# ATTENDANCE STOP
-# ============================================================
-
 @app.route(
     "/attendance/stop",
     methods=["POST"]
@@ -1361,11 +1149,6 @@ def attendance_stop():
     return jsonify({
         "success": True
     })
-
-
-# ============================================================
-# LIVE ATTENDANCE
-# ============================================================
 
 @app.route(
     "/attendance/live/<session_id>",
@@ -1486,11 +1269,6 @@ def live_attendance(session_id):
 
         }), 500
 
-
-# ============================================================
-# ATTENDANCE BY SESSION
-# ============================================================
-
 @app.route(
     "/attendance/session/<session_id>",
     methods=["GET"]
@@ -1509,21 +1287,11 @@ def attendance_by_session(session_id):
         print("Session ID:", session_id)
         print("============================================")
 
-
-        # ====================================================
-        # DATABASE CONNECTION
-        # ====================================================
-
         conn = get_db_connection()
 
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ====================================================
-        # GET SESSION DETAILS
-        # ====================================================
 
         cursor.execute(
             """
@@ -1576,18 +1344,6 @@ def attendance_by_session(session_id):
             session["year"]
         ).strip()
 
-
-        # ====================================================
-        # GET ALL STUDENTS FOR THIS CLASS
-        # ====================================================
-        #
-        # Students are considered part of the class when:
-        #
-        # students.branch = session.department
-        # students.year   = session.year
-        #
-        # ====================================================
-
         cursor.execute(
             """
             SELECT
@@ -1612,11 +1368,6 @@ def attendance_by_session(session_id):
             len(all_students)
         )
 
-
-        # ====================================================
-        # GET ATTENDANCE FOR THIS SESSION
-        # ====================================================
-
         cursor.execute(
             """
             SELECT
@@ -1638,12 +1389,6 @@ def attendance_by_session(session_id):
             "Attendance records:",
             len(attendance_records)
         )
-
-
-        # ====================================================
-        # CONVERT ATTENDANCE RECORDS TO DICTIONARY
-        # ====================================================
-
         attendance_dict = {}
 
         for record in attendance_records:
@@ -1661,11 +1406,6 @@ def attendance_by_session(session_id):
 
 
             attendance_dict[prn] = record
-
-
-        # ====================================================
-        # BUILD FINAL STUDENT LIST
-        # ====================================================
 
         final_list = []
 
@@ -1718,21 +1458,11 @@ def attendance_by_session(session_id):
 
                 })
 
-
-        # ====================================================
-        # CLOSE DATABASE
-        # ====================================================
-
         cursor.close()
         conn.close()
 
         cursor = None
         conn = None
-
-
-        # ====================================================
-        # COUNTS
-        # ====================================================
 
         present_count = sum(
             1
@@ -1745,11 +1475,6 @@ def attendance_by_session(session_id):
             for student in final_list
             if student["status"] == "Absent"
         )
-
-
-        # ====================================================
-        # RESPONSE
-        # ====================================================
 
         return jsonify({
 
@@ -1824,11 +1549,6 @@ def attendance_by_session(session_id):
             str(e)
         )
 
-
-        # ====================================================
-        # CLEANUP
-        # ====================================================
-
         try:
 
             if cursor:
@@ -1849,10 +1569,6 @@ def attendance_by_session(session_id):
                 str(e)
 
         }), 500
-
-# ============================================================
-# TEACHER ATTENDANCE
-# ============================================================
 
 @app.route(
     "/teacher/attendance",
@@ -1946,30 +1662,6 @@ def teacher_attendance():
 
         }), 500
 
-# ============================================================
-# TEACHER SESSIONS
-# ============================================================
-#
-# Frontend calls:
-#
-# GET /teacher/sessions/<teacher_id>
-#
-# teacher_id from frontend:
-#     E0001 / E0002
-#
-# Older attendance_sessions records may contain:
-#     Firebase UID
-#
-# Therefore this endpoint:
-#     1. Finds teacher using MySQL teacher_id
-#     2. Gets teacher email
-#     3. Gets Firebase UID using email
-#     4. Finds sessions using either:
-#           - MySQL teacher_id
-#           - Firebase UID
-#
-# ============================================================
-
 @app.route(
     "/teacher/sessions/<teacher_id>",
     methods=["GET"]
@@ -1990,21 +1682,11 @@ def teacher_sessions(teacher_id):
         print("Teacher ID:", teacher_id)
         print("============================================")
 
-
-        # ====================================================
-        # DATABASE CONNECTION
-        # ====================================================
-
         conn = get_db_connection()
 
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ====================================================
-        # FIND TEACHER FROM MYSQL
-        # ====================================================
 
         cursor.execute(
             """
@@ -2048,11 +1730,6 @@ def teacher_sessions(teacher_id):
             teacher["email"]
         ).strip().lower()
 
-
-        # ====================================================
-        # GET FIREBASE UID
-        # ====================================================
-
         firebase_uid = None
 
         try:
@@ -2074,21 +1751,6 @@ def teacher_sessions(teacher_id):
                 "Could not find Firebase user:",
                 firebase_error
             )
-
-
-        # ====================================================
-        # GET TEACHER SESSIONS
-        # ====================================================
-        #
-        # Support BOTH:
-        #
-        # New:
-        #     teacher_id = E0002
-        #
-        # Old:
-        #     teacher_id = Firebase UID
-        #
-        # ====================================================
 
         if firebase_uid:
 
@@ -2149,11 +1811,6 @@ def teacher_sessions(teacher_id):
             len(sessions)
         )
 
-
-        # ====================================================
-        # CONVERT MYSQL DATE/TIME TO STRING
-        # ====================================================
-
         for session in sessions:
 
             if session["lecture_date"]:
@@ -2176,21 +1833,12 @@ def teacher_sessions(teacher_id):
                     session["end_time"]
                 )
 
-
-        # ====================================================
-        # CLOSE DATABASE
-        # ====================================================
-
         cursor.close()
         conn.close()
 
         cursor = None
         conn = None
 
-
-        # ====================================================
-        # RESPONSE
-        # ====================================================
 
         return jsonify({
 
@@ -2234,10 +1882,6 @@ def teacher_sessions(teacher_id):
 
         }), 500
 
-
-# ============================================================
-# VERIFY FACE
-# ============================================================
 
 @app.route(
     "/verify-face",
@@ -2344,11 +1988,6 @@ def verify_face_api():
 
         }), 500
 
-
-# ============================================================
-# MARK ATTENDANCE
-# ============================================================
-
 @app.route(
     "/attendance/mark",
     methods=["POST"]
@@ -2359,10 +1998,6 @@ def attendance_mark():
     cursor = None
 
     try:
-
-        # ====================================================
-        # GET REQUEST DATA
-        # ====================================================
 
         data = request.get_json()
 
@@ -2382,22 +2017,12 @@ def attendance_mark():
             data.get("session_id", "")
         ).strip()
 
-
-        # ====================================================
-        # VALIDATE PRN
-        # ====================================================
-
         if not prn:
 
             return jsonify({
                 "success": False,
                 "message": "PRN is required."
             }), 400
-
-
-        # ====================================================
-        # VALIDATE SESSION
-        # ====================================================
 
         if not session_id:
 
@@ -2413,22 +2038,11 @@ def attendance_mark():
         print("Session ID:", session_id)
         print("============================================")
 
-
-        # ====================================================
-        # DATABASE CONNECTION
-        # ====================================================
-
         conn = get_db_connection()
 
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ====================================================
-        # CHECK STUDENT
-        # ====================================================
-
         cursor.execute(
             """
             SELECT
@@ -2452,11 +2066,6 @@ def attendance_mark():
                 "success": False,
                 "message": "Student not found."
             }), 404
-
-
-        # ====================================================
-        # CHECK SESSION
-        # ====================================================
 
         cursor.execute(
             """
@@ -2485,22 +2094,12 @@ def attendance_mark():
                 "message": "Attendance session not found."
             }), 404
 
-
-        # ====================================================
-        # CHECK SESSION ACTIVE
-        # ====================================================
-
         if session["status"] != "ACTIVE":
 
             return jsonify({
                 "success": False,
                 "message": "Attendance session is no longer active."
             }), 400
-
-
-        # ====================================================
-        # CHECK STUDENT BELONGS TO CLASS
-        # ====================================================
 
         if (
             str(student["branch"]).strip()
@@ -2522,11 +2121,6 @@ def attendance_mark():
                 "success": False,
                 "message": "Student does not belong to this class."
             }), 403
-
-
-        # ====================================================
-        # CHECK DUPLICATE ATTENDANCE
-        # ====================================================
 
         cursor.execute(
             """
@@ -2564,11 +2158,6 @@ def attendance_mark():
                     student["full_name"]
 
             }), 200
-
-
-        # ====================================================
-        # MARK ATTENDANCE
-        # ====================================================
 
         cursor.execute(
             """
@@ -2616,11 +2205,6 @@ def attendance_mark():
 
 
         conn.commit()
-
-
-        # ====================================================
-        # SUCCESS
-        # ====================================================
 
         print("ATTENDANCE MARKED SUCCESSFULLY")
         print("PRN:", prn)
@@ -2688,11 +2272,6 @@ def attendance_mark():
 
         except Exception:
             pass
-
-
-# ============================================================
-# RUN
-# ============================================================
 
 if __name__ == "__main__":
 

@@ -44,3 +44,4 @@ backend/database.py
 backend/__pycache__/
 *.pyc
 backend/venv/
+backend/serviceAccountKey.json
