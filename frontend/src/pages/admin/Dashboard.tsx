@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "../../styles/admin.css";
 
 import {
-  getAuth
+  getAuth,
+  onAuthStateChanged
 } from "firebase/auth";
 
 import {
@@ -50,10 +51,114 @@ export default function AdminDashboard() {
       face_folder: ""
     });
   const [photo, setPhoto] = useState<File | null>(null);
-  const [loading, setLoading] =
-    useState(false);
-  const [message, setMessage] =
-    useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [students, setStudents] = useState<any[]>([]);
+  const [selectedYear, setSelectedYear] = useState("");
+  const [studentListError, setStudentListError] = useState("");
+  const [selectedDepartment, setSelectedDepartment] = useState("");
+  const [studentsLoading, setStudentsLoading] = useState(false);
+
+  const fetchStudents = async (
+    year = selectedYear,
+    branch = selectedDepartment
+  ) => {
+    try {
+      setStudentsLoading(true);
+      setStudentListError("");
+
+      const currentUser = auth.currentUser;
+
+      if (!currentUser) {
+        throw new Error("Admin authentication is not ready.");
+      }
+
+      const token = await currentUser.getIdToken(true);
+
+      const params = new URLSearchParams();
+
+      if (year) {
+        params.append("year", year);
+      }
+
+      if (branch) {
+        params.append("branch", branch);
+      }
+
+      const response = await fetch(
+        `${API_URL}/api/students?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Failed to fetch students."
+        );
+      }
+
+      setStudents(data.students || data);
+      setStudentListError("");
+
+    } catch (error: any) {
+
+      console.error(
+        "Fetch students error:",
+        error
+      );
+
+      setStudents([]);
+
+      setStudentListError(
+        error?.message ||
+        "Unable to fetch students."
+      );
+
+    } finally {
+      setStudentsLoading(false);
+    }
+  };
+
+
+  useEffect(() => {
+
+    const unsubscribe = onAuthStateChanged(
+      auth,
+      (user) => {
+
+        if (user) {
+
+          fetchStudents(
+            selectedYear,
+            selectedDepartment
+          );
+
+        } else {
+
+          setStudents([]);
+          setStudentsLoading(false);
+          setStudentListError("");
+
+        }
+
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+
+  }, [
+    selectedYear,
+    selectedDepartment
+  ]);
+
   const handlePhotoChange = (
     e: React.ChangeEvent<HTMLInputElement>
   ) => {
@@ -180,6 +285,7 @@ export default function AdminDashboard() {
       setMessage(
         "Student added successfully!"
       );
+      fetchStudents(selectedYear, selectedDepartment);
       setFormData({
         prn: "",
         full_name: "",
@@ -503,7 +609,224 @@ export default function AdminDashboard() {
                   : "Add Student"
               }
             </button>
-          </form>
+                    </form>
+
+
+          {/* =========================================
+              STUDENT LIST SECTION
+          ========================================= */}
+
+          <div className="student-list-section">
+
+            <div className="admin-title">
+              Student List
+            </div>
+
+
+            {/* FILTERS */}
+
+            <div className="student-filters">
+
+              {/* YEAR FILTER */}
+
+              <div className="admin-field">
+
+                <label>
+                  Select Year
+                </label>
+
+                <select
+                  value={selectedYear}
+                  onChange={(e) =>
+                    setSelectedYear(e.target.value)
+                  }
+                  disabled={studentsLoading}
+                >
+
+                  <option value="">
+                    All Years
+                  </option>
+
+                  <option value="First Year">
+                    First Year
+                  </option>
+
+                  <option value="Second Year">
+                    Second Year
+                  </option>
+
+                  <option value="Third Year">
+                    Third Year
+                  </option>
+
+                  <option value="Final Year">
+                    Final Year
+                  </option>
+
+                </select>
+
+              </div>
+
+
+              {/* DEPARTMENT FILTER */}
+
+              <div className="admin-field">
+
+                <label>
+                  Select Department
+                </label>
+
+                <select
+                  value={selectedDepartment}
+                  onChange={(e) =>
+                    setSelectedDepartment(e.target.value)
+                  }
+                  disabled={studentsLoading}
+                >
+
+                  <option value="">
+                    All Departments
+                  </option>
+
+                  <option value="AIML">
+                    AIML
+                  </option>
+
+                  <option value="CSE">
+                    CSE
+                  </option>
+
+                  <option value="ENTC">
+                    ENTC
+                  </option>
+
+                  <option value="Mechanical">
+                    Mechanical
+                  </option>
+
+                  <option value="Civil">
+                    Civil
+                  </option>
+
+                </select>
+
+              </div>
+
+            </div>
+
+
+            {/* STUDENT COUNT */}
+
+            <div className="student-count">
+
+              {studentsLoading
+                ? "Loading students..."
+                : `${students.length} student${
+                    students.length !== 1 ? "s" : ""
+                  } found`
+              }
+
+            </div>
+
+
+            {/* STUDENT TABLE */}
+
+            {studentsLoading ? (
+
+              <div className="student-list-message">
+                Loading students...
+              </div>
+
+            ) : students.length === 0 ? (
+
+              <div className="student-list-message">
+                No students found.
+              </div>
+
+            ) : (
+
+              <div className="student-table-container">
+
+                <table className="student-table">
+
+                  <thead>
+
+                    <tr>
+
+                      <th>PRN</th>
+
+                      <th>Full Name</th>
+
+                      <th>Email</th>
+
+                      <th>Phone</th>
+
+                      <th>Year</th>
+
+                      <th>Department</th>
+
+                      <th>Division</th>
+
+                      <th>Gender</th>
+
+                    </tr>
+
+                  </thead>
+
+
+                  <tbody>
+
+                    {students.map((student) => (
+
+                      <tr key={student.prn}>
+
+                        <td>
+                          {student.prn}
+                        </td>
+
+                        <td>
+                          {student.full_name}
+                        </td>
+
+                        <td>
+                          {student.email}
+                        </td>
+
+                        <td>
+                          {student.phone}
+                        </td>
+
+                        <td>
+                          {student.year}
+                        </td>
+
+                        <td>
+                          {student.branch}
+                        </td>
+
+                        <td>
+                          {student.division}
+                        </td>
+
+                        <td>
+                          {student.gender || "-"}
+                        </td>
+
+                      </tr>
+
+                    ))}
+
+                  </tbody>
+
+                </table>
+
+              </div>
+
+            )}
+
+          </div>
+
+
           <button
             className="admin-logout-btn"
             onClick={logout}
