@@ -1,28 +1,22 @@
 import os
 from datetime import datetime, date, timedelta
 from io import BytesIO
-
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
-
 import cv2
 import numpy as np
-
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
-
 import firebase_admin
 from firebase_admin import credentials
 from firebase_admin import auth
-
 from attendance_session import (
     get_session,
     refresh_session,
     start_session,
     stop_session
 )
-
 from database import get_db_connection
 from face_verify import verify_face
 
@@ -40,117 +34,82 @@ CORS(
         "Authorization"
     ]
 )
-
 SERVICE_ACCOUNT_PATH = os.path.join(
     os.path.dirname(__file__),
     "serviceAccountKey.json"
 )
-
 try:
-
     if not os.path.exists(SERVICE_ACCOUNT_PATH):
         raise FileNotFoundError(
             "serviceAccountKey.json not found in backend folder."
         )
-
     if not firebase_admin._apps:
-
         cred = credentials.Certificate(
             SERVICE_ACCOUNT_PATH
         )
-
         firebase_admin.initialize_app(cred)
-
     print("Firebase Admin SDK initialized successfully.")
-
 except Exception as e:
-
     print(
         "Firebase initialization failed:",
         e
     )
-
-
 def verify_firebase_token():
-
     auth_header = request.headers.get("Authorization")
-
     if not auth_header:
         raise Exception("Authorization token missing.")
-
     if not auth_header.startswith("Bearer "):
         raise Exception("Invalid Authorization header.")
-
     id_token = auth_header.split(
         "Bearer ",
         1
     )[1]
-
     decoded_token = auth.verify_id_token(id_token)
-
     return decoded_token
-
 
 @app.route("/")
 def home():
-
     return jsonify({
         "success": True,
         "message": "Proxy-Resistant Smart Attendance Backend Running"
     })
-
 @app.route(
     "/api/auth/login",
     methods=["POST"]
 )
 def api_login():
-
     try:
-
         data = request.get_json()
-
         if not data:
-
             return jsonify({
                 "success": False,
                 "message": "No login data received."
             }), 400
-
         email = str(
             data.get("email", "")
         ).strip().lower()
-
         role = str(
             data.get("role", "")
         ).strip().lower()
-
         if not email:
-
             return jsonify({
                 "success": False,
                 "message": "Email is required."
             }), 400
-
         if role not in [
             "student",
             "teacher",
             "admin"
         ]:
-
             return jsonify({
                 "success": False,
                 "message": "Invalid role."
             }), 400
-
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
         if role == "student":
-
             cursor.execute(
                 """
                 SELECT
@@ -169,39 +128,25 @@ def api_login():
                 """,
                 (email,)
             )
-
             student = cursor.fetchone()
-
             cursor.close()
             conn.close()
-
-
             if not student:
-
                 return jsonify({
                     "success": False,
                     "message":
                         "Student account exists in Firebase, "
                         "but no student record was found in MySQL."
                 }), 404
-
-
             return jsonify({
-
                 "success": True,
-
                 "role": "student",
-
                 "prn":
                     student["prn"],
-
                 "student":
                     student
-
             }), 200
-
         if role == "teacher":
-
             cursor.execute(
                 """
                 SELECT
@@ -217,39 +162,24 @@ def api_login():
                 """,
                 (email,)
             )
-
             teacher = cursor.fetchone()
-
             cursor.close()
             conn.close()
-
-
             if not teacher:
-
                 return jsonify({
                     "success": False,
                     "message":
                         "Teacher account not found in MySQL."
                 }), 404
-
-
             return jsonify({
-
                 "success": True,
-
                 "role": "teacher",
-
                 "teacher_id":
                     teacher["teacher_id"],
-
                 "teacher":
                     teacher
-
             }), 200
-
-
         if role == "admin":
-
             cursor.execute(
                 """
                 SELECT
@@ -262,219 +192,243 @@ def api_login():
                 """,
                 (email,)
             )
-
             admin = cursor.fetchone()
-
             cursor.close()
             conn.close()
-
-
             if not admin:
-
                 return jsonify({
                     "success": False,
                     "message":
                         "Admin account not found in MySQL."
                 }), 404
-
-
             return jsonify({
-
                 "success": True,
-
                 "role": "admin",
-
                 "admin_id":
                     admin["admin_id"],
-
                 "admin":
                     admin
-
             }), 200
-
-
     except Exception as e:
-
         print(
             "LOGIN ERROR:",
             str(e)
         )
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
+    
+@app.route(
+    "/api/students",
+    methods=["GET"]
+)
+def get_students():
+    conn = None
+    cursor = None
+    try:
+        decoded_token = verify_firebase_token()
+        if not decoded_token:
+            return jsonify({
+                "success": False,
+                "message": "Invalid Firebase authentication."
+            }), 401
+        year = request.args.get(
+            "year",
+            ""
+        ).strip()
+        branch = request.args.get(
+            "branch",
+            ""
+        ).strip()
+        conn = get_db_connection()
+        cursor = conn.cursor(
+            dictionary=True
+        )
+        query = """
+            SELECT
+                prn,
+                full_name,
+                email,
+                phone,
+                year,
+                branch,
+                division,
+                gender,
+                face_folder
+            FROM students
+            WHERE 1 = 1
+        """
+        params = []
+        if year:
+            query += """
+                AND TRIM(year) = %s
+            """
+            params.append(year)
+        if branch:
+            query += """
+                AND TRIM(branch) = %s
+            """
+            params.append(branch)
+        query += """
+            ORDER BY full_name ASC
+        """
+        cursor.execute(
+            query,
+            tuple(params)
+        )
+        students = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        cursor = None
+        conn = None
+        return jsonify({
+            "success": True,
+            "students": students,
+            "count": len(students)
+        }), 200
+    except Exception as e:
+        print(
+            "GET STUDENTS ERROR:",
+            str(e)
+        )
+        try:
+            if cursor:
+                cursor.close()
+            if conn:
+                conn.close()
+        except Exception:
+            pass
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 
 @app.route(
     "/api/students",
     methods=["POST"]
 )
 def add_student():
-
     created_firebase_uid = None
-
     conn = None
     cursor = None
-
     student_folder = None
     image_path = None
-
     try:
-
         decoded_token = verify_firebase_token()
-
         if not decoded_token:
             return jsonify({
                 "success": False,
                 "message": "Invalid Firebase authentication."
             }), 401
-
-
         data = request.form
-
         prn = str(
             data.get("prn", "")
         ).strip()
-
         full_name = str(
             data.get("full_name", "")
         ).strip()
-
         email = str(
             data.get("email", "")
         ).strip().lower()
-
         password = str(
             data.get("password", "")
         )
-
         phone = str(
             data.get("phone", "")
         ).strip()
-
         year = str(
             data.get("year", "")
         ).strip()
-
         branch = str(
             data.get("branch", "")
         ).strip()
-
         division = str(
             data.get("division", "")
         ).strip()
-
         gender = data.get("gender")
-
         if gender:
             gender = str(gender).strip()
         else:
             gender = None
-
         if not prn:
             return jsonify({
                 "success": False,
                 "message": "PRN is required."
             }), 400
-
         if not full_name:
             return jsonify({
                 "success": False,
                 "message": "Full name is required."
             }), 400
-
         if not email:
             return jsonify({
                 "success": False,
                 "message": "Email is required."
             }), 400
-
         if not password:
             return jsonify({
                 "success": False,
                 "message": "Password is required."
             }), 400
-
         if len(password) < 6:
             return jsonify({
                 "success": False,
                 "message":
                     "Password must contain at least 6 characters."
             }), 400
-
         if not phone:
             return jsonify({
                 "success": False,
                 "message": "Phone is required."
             }), 400
-
         if not year:
             return jsonify({
                 "success": False,
                 "message": "Year is required."
             }), 400
-
         if not branch:
             return jsonify({
                 "success": False,
                 "message": "Branch is required."
             }), 400
-
         if not division:
             return jsonify({
                 "success": False,
                 "message": "Division is required."
             }), 400
-
         photo = request.files.get("photo")
-
         if not photo:
             return jsonify({
                 "success": False,
                 "message": "Student photo is required."
             }), 400
-
-
         original_filename = photo.filename
-
         if not original_filename:
             return jsonify({
                 "success": False,
                 "message": "Invalid photo filename."
             }), 400
-
-
         extension = os.path.splitext(
             original_filename
         )[1].lower()
-
-
         allowed_extensions = {
             ".jpg",
             ".jpeg",
             ".png",
             ".webp"
         }
-
-
         if extension not in allowed_extensions:
             return jsonify({
                 "success": False,
                 "message":
                     "Only JPG, JPEG, PNG and WEBP images are allowed."
             }), 400
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
         cursor.execute(
             """
             SELECT
@@ -487,18 +441,13 @@ def add_student():
             """,
             (prn,)
         )
-
         existing_student = cursor.fetchone()
-
-
         if existing_student:
-
             return jsonify({
                 "success": False,
                 "message":
                     f"Student with PRN {prn} already exists."
             }), 409
-
         cursor.execute(
             """
             SELECT
@@ -510,67 +459,51 @@ def add_student():
             """,
             (email,)
         )
-
         existing_email = cursor.fetchone()
         if existing_email:
-
             return jsonify({
                 "success": False,
                 "message":
                     f"Student with email {email} already exists."
             }), 409
-
         firebase_user = auth.create_user(
             email=email,
             password=password,
             display_name=full_name
         )
-
         created_firebase_uid = firebase_user.uid
-
         print(
             "Firebase student authentication account created."
         )
-
         dataset_path = os.path.join(
             os.path.dirname(__file__),
             "dataset"
         )
-
         os.makedirs(
             dataset_path,
             exist_ok=True
         )
-
-
         student_folder = os.path.join(
             dataset_path,
             prn
         )
-
         os.makedirs(
             student_folder,
             exist_ok=True
         )
-
         image_filename = (
             "image_1" + extension
         )
-
         image_path = os.path.join(
             student_folder,
             image_filename
         )
-
         photo.save(image_path)
-
-
         print(
             "Student face image saved:",
             image_path
         )
         face_folder = prn
-
         cursor.execute(
             """
             INSERT INTO students
@@ -615,158 +548,101 @@ def add_student():
         conn.close()
         cursor = None
         conn = None
-
         return jsonify({
-
             "success": True,
-
             "message":
                 "Student added successfully.",
-
             "student": {
-
                 "prn":
                     prn,
-
                 "full_name":
                     full_name,
-
                 "email":
                     email,
-
                 "phone":
                     phone,
-
                 "year":
                     year,
-
                 "branch":
                     branch,
-
                 "division":
                     division,
-
                 "gender":
                     gender,
-
                 "face_folder":
                     face_folder
-
             }
-
         }), 201
-
     except auth.EmailAlreadyExistsError:
-
         if cursor:
             cursor.close()
-
         if conn:
             conn.close()
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 "A Firebase account already exists with this email."
-
         }), 409
-
     except Exception as e:
-
         print(
             "ADD STUDENT ERROR:",
             str(e)
         )
         try:
-
             if conn:
                 conn.rollback()
-
         except Exception:
             pass
-
         if created_firebase_uid:
-
             try:
-
                 auth.delete_user(
                     created_firebase_uid
                 )
-
                 print(
                     "Firebase student account rolled back."
                 )
-
             except Exception as cleanup_error:
-
                 print(
                     "Firebase cleanup error:",
                     cleanup_error
                 )
-
         try:
-
             if image_path and os.path.exists(image_path):
-
                 os.remove(image_path)
-
             if (
                 student_folder
                 and os.path.exists(student_folder)
                 and not os.listdir(student_folder)
             ):
-
                 os.rmdir(student_folder)
-
         except Exception as cleanup_error:
-
             print(
                 "Photo cleanup error:",
                 cleanup_error
             )
-
         try:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/student/profile/<prn>",
     methods=["GET"]
 )
 def get_student_profile(prn):
-
     try:
-
         prn = str(prn).strip()
-
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-
         cursor.execute(
             """
             SELECT
@@ -785,49 +661,29 @@ def get_student_profile(prn):
             """,
             (prn,)
         )
-
-
         student = cursor.fetchone()
-
-
         cursor.close()
         conn.close()
-
-
         if not student:
-
             return jsonify({
-
                 "success": False,
-
                 "message":
                     "Student not found."
-
             }), 404
-
-
         return jsonify(student), 200
-
-
     except Exception as e:
-
         print(
             "STUDENT PROFILE ERROR:",
             str(e)
         )
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
     
 @app.route("/student/attendance/<prn>", methods=["GET"])
 def student_attendance(prn):
-
     try:
         prn = str(prn).strip()
 
@@ -845,22 +701,16 @@ def student_attendance(prn):
             WHERE prn = %s
             LIMIT 1
         """, (prn,))
-
         student = cursor.fetchone()
-
         if not student:
             cursor.close()
             conn.close()
-
             return jsonify({
                 "success": False,
                 "message": "Student not found."
             }), 404
-
         branch = student["branch"]
         year = student["year"]
-
-        # Get ALL lectures for student's class
         cursor.execute("""
             SELECT
                 session_id,
@@ -873,16 +723,11 @@ def student_attendance(prn):
               AND year = %s
             ORDER BY lecture_date DESC, start_time DESC
         """, (branch, year))
-
         lectures = cursor.fetchall()
-
         attendance_list = []
-
         present = 0
         absent = 0
-
         for lecture in lectures:
-
             cursor.execute("""
                 SELECT
                     attendance_time,
@@ -895,9 +740,7 @@ def student_attendance(prn):
                 lecture["session_id"],
                 prn
             ))
-
             record = cursor.fetchone()
-
             if record:
                 status = "Present"
                 attendance_time = str(record["attendance_time"])
@@ -906,7 +749,6 @@ def student_attendance(prn):
                 status = "Absent"
                 attendance_time = "-"
                 absent += 1
-
             attendance_list.append({
                 "subject": lecture["subject"],
                 "date": str(lecture["lecture_date"]),
@@ -919,61 +761,43 @@ def student_attendance(prn):
                 "status": status,
                 "attendance_time": attendance_time
             })
-
         total = len(lectures)
-
         percentage = 0
-
         if total > 0:
             percentage = round(
                 (present / total) * 100,
                 2
             )
-
         cursor.close()
         conn.close()
-
         return jsonify({
             "success": True,
-
             "summary": {
                 "total": total,
                 "present": present,
                 "absent": absent,
                 "percentage": percentage
             },
-
             "attendance": attendance_list
         })
-
     except Exception as e:
-
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
-
-
 @app.route(
     "/teacher/profile/<teacher_id>",
     methods=["GET"]
 )
 def get_teacher_profile(teacher_id):
-
     try:
-
         teacher_id = str(
             teacher_id
         ).strip()
-
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-
         cursor.execute(
             """
             SELECT
@@ -989,187 +813,107 @@ def get_teacher_profile(teacher_id):
             """,
             (teacher_id,)
         )
-
-
         teacher = cursor.fetchone()
-
-
         cursor.close()
         conn.close()
-
-
         if not teacher:
-
             return jsonify({
-
                 "success": False,
-
                 "message":
                     "Teacher not found."
-
             }), 404
-
-
         return jsonify(teacher), 200
-
-
     except Exception as e:
-
         print(
             "TEACHER PROFILE ERROR:",
             str(e)
         )
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/attendance/start",
     methods=["POST"]
 )
 def attendance_start():
-
     data = request.json
-
-
     session = start_session(
-
         data["teacher_id"],
-
         data["department"],
-
         data["year"],
-
         data["subject"],
-
         data["lat"],
-
         data["lng"]
-
     )
-
-
     return jsonify({
-
         "success": True,
-
         "session_id":
             session["session_id"],
-
         "qr_token":
             session["qr_token"]
-
     })
-
-
 @app.route(
     "/attendance/verify",
     methods=["POST"]
 )
 def attendance_verify():
-
     session = get_session()
-
-
     if session is None:
-
         return jsonify({
-
             "success": False,
-
             "message":
                 "Attendance session not active"
-
         })
-
-
     data = request.json
-
-
     if data["qr_token"] != session["qr_token"]:
-
         return jsonify({
-
             "success": False,
-
             "message":
                 "QR Expired"
-
         })
-
-
     return jsonify({
-
         "success": True,
-
         "session_id":
             session["session_id"]
-
     })
-
-
 @app.route(
     "/attendance/refresh",
     methods=["POST"]
 )
 def attendance_refresh():
-
     session = refresh_session()
-
-
     if session is None:
-
         return jsonify({
             "success": False
         })
-
-
     return jsonify({
-
         "success": True,
-
         "session_id":
             session["session_id"],
-
         "qr_token":
             session["qr_token"]
-
     })
-
-
 @app.route(
     "/attendance/stop",
     methods=["POST"]
 )
 def attendance_stop():
-
     stop_session()
-
     return jsonify({
         "success": True
     })
-
 @app.route(
     "/attendance/live/<session_id>",
     methods=["GET"]
 )
 def live_attendance(session_id):
-
     try:
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-
         cursor.execute(
             """
             SELECT
@@ -1184,40 +928,24 @@ def live_attendance(session_id):
             """,
             (session_id,)
         )
-
-
         session = cursor.fetchone()
-
-
         if not session:
-
             cursor.close()
             conn.close()
-
             return jsonify({
-
                 "success": False,
-
                 "message":
                     "Session not found"
-
             }), 404
-
-
         if session["lecture_date"]:
-
             session["lecture_date"] = str(
                 session["lecture_date"]
             )
-
-
         if session["start_time"]:
 
             session["start_time"] = str(
                 session["start_time"]
             )
-
-
         cursor.execute(
             """
             SELECT
@@ -1231,73 +959,44 @@ def live_attendance(session_id):
             """,
             (session_id,)
         )
-
-
         students = cursor.fetchall()
-
-
         for row in students:
-
             if row["attendance_time"]:
-
                 row["attendance_time"] = str(
                     row["attendance_time"]
                 )
-
-
         cursor.close()
         conn.close()
-
-
         return jsonify({
-
             "success": True,
-
             "session": session,
-
             "students": students,
-
             "present_count":
                 len(students)
-
         })
-
-
     except Exception as e:
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/attendance/session/<session_id>",
     methods=["GET"]
 )
 def attendance_by_session(session_id):
-
     conn = None
     cursor = None
-
     try:
-
         session_id = str(session_id).strip()
-
         print("============================================")
         print("ATTENDANCE SESSION REQUEST")
         print("Session ID:", session_id)
         print("============================================")
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
         cursor.execute(
             """
             SELECT
@@ -1316,39 +1015,25 @@ def attendance_by_session(session_id):
             """,
             (session_id,)
         )
-
         session = cursor.fetchone()
-
-
         if not session:
-
             print(
                 "SESSION NOT FOUND:",
                 session_id
             )
-
             return jsonify({
-
                 "success": False,
-
                 "message":
                     "Session not found."
-
             }), 404
-
-
         print("Session found:")
         print(session)
-
-
         department = str(
             session["department"]
         ).strip()
-
         year = str(
             session["year"]
         ).strip()
-
         cursor.execute(
             """
             SELECT
@@ -1364,15 +1049,11 @@ def attendance_by_session(session_id):
                 year
             )
         )
-
         all_students = cursor.fetchall()
-
-
         print(
             "Total class students:",
             len(all_students)
         )
-
         cursor.execute(
             """
             SELECT
@@ -1386,67 +1067,42 @@ def attendance_by_session(session_id):
             """,
             (session_id,)
         )
-
         attendance_records = cursor.fetchall()
-
-
         print(
             "Attendance records:",
             len(attendance_records)
         )
         attendance_dict = {}
-
         for record in attendance_records:
-
             prn = str(
                 record["prn"]
             ).strip()
-
-
             if record["attendance_time"]:
 
                 record["attendance_time"] = str(
                     record["attendance_time"]
                 )
-
-
             attendance_dict[prn] = record
-
         final_list = []
-
-
         for student in all_students:
-
             prn = str(
                 student["prn"]
             ).strip()
-
-
             if prn in attendance_dict:
-
                 record = attendance_dict[prn]
-
-
                 final_list.append({
-
                     "prn":
                         prn,
-
                     "student_name":
                         student["full_name"],
-
                     "status":
                         "Present",
-
                     "attendance_time":
                         record["attendance_time"]
                         if record["attendance_time"]
                         else "-"
-
                 })
-
             else:
-
                 final_list.append({
 
                     "prn":
@@ -1574,6 +1230,377 @@ def attendance_by_session(session_id):
                 str(e)
 
         }), 500
+
+@app.route(
+    "/teacher/attendance/mark-present",
+    methods=["POST"]
+)
+def teacher_mark_present():
+    conn = None
+    cursor = None
+
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No attendance data received."
+            }), 400
+
+        teacher_id = str(
+            data.get("teacher_id", "")
+        ).strip()
+
+        session_id = str(
+            data.get("session_id", "")
+        ).strip()
+
+        prn = str(
+            data.get("prn", "")
+        ).strip()
+
+        if not teacher_id:
+            return jsonify({
+                "success": False,
+                "message": "Teacher ID is required."
+            }), 400
+
+        if not session_id:
+            return jsonify({
+                "success": False,
+                "message": "Session ID is required."
+            }), 400
+
+        if not prn:
+            return jsonify({
+                "success": False,
+                "message": "PRN is required."
+            }), 400
+
+        print("============================================")
+        print("FACULTY MANUAL ATTENDANCE CORRECTION")
+        print("Teacher ID:", teacher_id)
+        print("Session ID:", session_id)
+        print("PRN:", prn)
+        print("============================================")
+
+        conn = get_db_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        # ----------------------------------------------------
+        # Get teacher
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                teacher_id,
+                full_name
+            FROM teachers
+            WHERE teacher_id = %s
+            LIMIT 1
+            """,
+            (teacher_id,)
+        )
+
+        teacher = cursor.fetchone()
+
+        if not teacher:
+            return jsonify({
+                "success": False,
+                "message": "Teacher not found."
+            }), 404
+
+        # ----------------------------------------------------
+        # Get session
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                session_id,
+                teacher_id,
+                subject,
+                department,
+                year,
+                lecture_date,
+                start_time,
+                end_time,
+                status
+            FROM attendance_sessions
+            WHERE session_id = %s
+            LIMIT 1
+            """,
+            (session_id,)
+        )
+
+        session = cursor.fetchone()
+
+        if not session:
+            return jsonify({
+                "success": False,
+                "message": "Attendance session not found."
+            }), 404
+
+        # ----------------------------------------------------
+        # IMPORTANT:
+        # Make sure this teacher owns this session.
+        #
+        # We also support old Firebase UID sessions.
+        # ----------------------------------------------------
+
+        allowed_teacher_ids = [
+            str(teacher_id).strip()
+        ]
+
+        try:
+            teacher_email = str(
+                teacher.get("email", "")
+            ).strip().lower()
+
+            if teacher_email:
+                firebase_user = auth.get_user_by_email(
+                    teacher_email
+                )
+
+                firebase_uid = firebase_user.uid
+
+                if firebase_uid not in allowed_teacher_ids:
+                    allowed_teacher_ids.append(
+                        firebase_uid
+                    )
+
+        except Exception as firebase_error:
+
+            print(
+                "Firebase teacher lookup skipped:",
+                firebase_error
+            )
+
+        session_teacher_id = str(
+            session["teacher_id"]
+        ).strip()
+
+        if session_teacher_id not in allowed_teacher_ids:
+            return jsonify({
+                "success": False,
+                "message":
+                    "You are not authorized to modify this attendance session."
+            }), 403
+
+        # ----------------------------------------------------
+        # Get student
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                prn,
+                full_name,
+                branch,
+                year
+            FROM students
+            WHERE prn = %s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+        student = cursor.fetchone()
+
+        if not student:
+            return jsonify({
+                "success": False,
+                "message": "Student not found."
+            }), 404
+
+        # ----------------------------------------------------
+        # Verify student belongs to this session's class
+        # ----------------------------------------------------
+
+        if (
+            str(student["branch"]).strip()
+            != str(session["department"]).strip()
+        ):
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student does not belong to this department."
+            }), 403
+
+        if (
+            str(student["year"]).strip()
+            != str(session["year"]).strip()
+        ):
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student does not belong to this class."
+            }), 403
+
+        # ----------------------------------------------------
+        # Check existing attendance
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                attendance_id,
+                status,
+                attendance_time
+            FROM attendance
+            WHERE session_id = %s
+              AND TRIM(prn) = %s
+            LIMIT 1
+            """,
+            (
+                session_id,
+                prn
+            )
+        )
+
+        existing = cursor.fetchone()
+
+        # ----------------------------------------------------
+        # Already present
+        # ----------------------------------------------------
+
+        if existing:
+
+            if existing["status"] == "Present":
+                return jsonify({
+                    "success": True,
+                    "message":
+                        "Student is already marked Present.",
+                    "already_present": True,
+                    "prn": prn,
+                    "name": student["full_name"]
+                }), 200
+
+            # ------------------------------------------------
+            # If an Absent row exists, update it.
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                UPDATE attendance
+                SET
+                    status = 'Present',
+                    attendance_time = NOW(),
+                    teacher_id = %s,
+                    teacher_name = %s
+                WHERE attendance_id = %s
+                """,
+                (
+                    session["teacher_id"],
+                    teacher["full_name"],
+                    existing["attendance_id"]
+                )
+            )
+
+        else:
+
+            # ------------------------------------------------
+            # Normal case:
+            # Absent means no attendance row exists.
+            #
+            # Create a Present record.
+            # ------------------------------------------------
+
+            cursor.execute(
+                """
+                INSERT INTO attendance
+                (
+                    session_id,
+                    teacher_id,
+                    student_name,
+                    teacher_name,
+                    prn,
+                    subject,
+                    department,
+                    year,
+                    attendance_date,
+                    attendance_time,
+                    status
+                )
+                VALUES
+                (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    NOW(),
+                    'Present'
+                )
+                """,
+                (
+                    session_id,
+                    session["teacher_id"],
+                    student["full_name"],
+                    teacher["full_name"],
+                    prn,
+                    session["subject"],
+                    session["department"],
+                    session["year"],
+                    session["lecture_date"]
+                )
+            )
+
+        conn.commit()
+
+        print("MANUAL ATTENDANCE UPDATED SUCCESSFULLY")
+        print("PRN:", prn)
+        print("Student:", student["full_name"])
+
+        return jsonify({
+            "success": True,
+            "message":
+                f"{student['full_name']} marked Present successfully.",
+            "already_present": False,
+            "prn": prn,
+            "name": student["full_name"],
+            "session_id": session_id
+        }), 200
+
+    except Exception as e:
+
+        print(
+            "MANUAL ATTENDANCE ERROR:",
+            str(e)
+        )
+
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+    finally:
+
+        try:
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+        except Exception:
+            pass
+
 
 @app.route(
     "/teacher/attendance",

@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import "../../styles/attendance.css";
 import { API_URL } from "../../config";
 
-// Define strict TypeScript contracts for API data
 interface Session {
   session_id: string;
   subject: string;
@@ -14,65 +13,49 @@ interface Session {
   year: string;
   status: string;
 }
-
 interface Student {
   prn: string;
   student_name: string;
   status: string;
   attendance_time: string;
 }
-
 export default function TeacherAttendance() {
   const navigate = useNavigate();
-
-  // State Management
   const [loading, setLoading] = useState<boolean>(true);
   const [studentsLoading, setStudentsLoading] = useState<boolean>(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-
   const [selectedSubject, setSelectedSubject] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSession, setSelectedSession] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [downloading, setDownloading] = useState<boolean>(false);
-  
 
-  // Load teacher sessions on initial mount
   useEffect(() => {
     loadSessions();
   }, []);
-
   const loadSessions = async () => {
     setLoading(true);
     try {
       const teacherId = localStorage.getItem("teacher_id");
-
       if (!teacherId) {
         console.error("Teacher ID not found.");
         setSessions([]);
         return;
       }
-
       const res = await fetch(
         `${API_URL}/teacher/sessions/${teacherId}`
       );
       const data = await res.json();
-
       if (data.success && data.sessions.length > 0) {
         setSessions(data.sessions);
-
         const latestMonth =
           data.sessions[0].lecture_date.substring(0, 7);
-
         setSelectedMonth(latestMonth);
-
         const firstSession = data.sessions[0];
-
         setSelectedSubject(firstSession.subject);
         setSelectedDate(firstSession.lecture_date);
         setSelectedSession(firstSession.session_id);
-
         await loadStudents(firstSession.session_id);
       } else {
         setSessions([]);
@@ -83,14 +66,12 @@ export default function TeacherAttendance() {
       setLoading(false);
     }
   };
-
   const loadStudents = async (sessionId: string) => {
     if (!sessionId) return;
     setStudentsLoading(true);
     try {
       const res = await fetch(`${API_URL}/attendance/session/${sessionId}`);
       const data = await res.json();
-
       if (data.success) {
         setStudents(data.students);
       } else {
@@ -103,93 +84,120 @@ export default function TeacherAttendance() {
       setStudentsLoading(false);
     }
   };
-
+  const markStudentPresent = async (prn: string, studentName: string) => {
+  if (!selectedSession) {
+    alert("Please select a lecture first.");
+    return;
+  }
+  const teacherId = localStorage.getItem("teacher_id");
+  if (!teacherId) {
+    alert("Teacher ID not found. Please login again.");
+    return;
+  }
+  const confirmed = window.confirm(
+    `Are you sure you want to mark ${studentName} as Present?`
+  );
+  if (!confirmed) {
+    return;
+  }
+  try {
+    const response = await fetch(
+      `${API_URL}/teacher/attendance/mark-present`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teacher_id: teacherId,
+          session_id: selectedSession,
+          prn: prn,
+        }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Failed to update attendance."
+      );
+    }
+    alert(
+      `✅ ${studentName} has been marked Present.`
+    );
+    await loadStudents(selectedSession);
+  } catch (error) {
+    console.error(
+      "Mark present error:",
+      error
+    );
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Failed to update attendance."
+    );
+  }
+};
   const downloadExcel = async (
     type: "attendance" | "defaulters"
   ) => {
     const teacherId = localStorage.getItem("teacher_id");
-
     if (!teacherId) {
       alert("Teacher ID not found.");
       return;
     }
-
     if (!selectedMonth) {
       alert("Please select a month.");
       return;
     }
-
     setDownloading(true);
-
     try {
       const endpoint =
         type === "attendance"
           ? `/teacher/monthly-attendance/${teacherId}/excel`
           : `/teacher/monthly-defaulters/${teacherId}/excel`;
-
       const response = await fetch(
         `${API_URL}${endpoint}?month=${selectedMonth}`
       );
-
       if (!response.ok) {
         let message = "Failed to download Excel.";
-
         try {
           const data = await response.json();
-
           if (data.message) {
             message = data.message;
           }
         } catch {
-          // Ignore JSON parsing error
         }
-
         throw new Error(message);
       }
-
       const blob = await response.blob();
-
       const url = window.URL.createObjectURL(blob);
-
       const link = document.createElement("a");
-
       link.href = url;
-
       link.download =
         type === "attendance"
           ? `Monthly_Attendance_${selectedMonth}.xlsx`
           : `Defaulter_Attendance_${selectedMonth}.xlsx`;
-
       document.body.appendChild(link);
-
       link.click();
-
       link.remove();
-
       window.URL.revokeObjectURL(url);
-
     } catch (error) {
       console.error(
         "Excel download error:",
         error
       );
-
       alert(
         error instanceof Error
           ? error.message
           : "Failed to download Excel."
       );
-
     } finally {
       setDownloading(false);
     }
   };
-
-  // Memoized Select Dropdown Options
   const subjects = useMemo(() => {
     return [...new Set(sessions.map((s) => s.subject))];
   }, [sessions]);
-
   const dates = useMemo(() => {
     return [
       ...new Set(
@@ -199,16 +207,13 @@ export default function TeacherAttendance() {
       ),
     ];
   }, [sessions, selectedSubject]);
-
   const lectureTimes = useMemo(() => {
     return sessions.filter(
       (s) => s.subject === selectedSubject && s.lecture_date === selectedDate
     );
   }, [sessions, selectedSubject, selectedDate]);
-
   const months = useMemo(() => {
     const uniqueMonths = new Set<string>();
-
     sessions.forEach((session) => {
       if (session.lecture_date) {
         uniqueMonths.add(
@@ -216,12 +221,8 @@ export default function TeacherAttendance() {
         );
       }
     });
-
     return Array.from(uniqueMonths).sort().reverse();
   }, [sessions]);
-
-
-  // Find currently selected session details
   const currentLecture = useMemo(() => {
     return sessions.find((s) => s.session_id === selectedSession);
   }, [sessions, selectedSession]);
@@ -238,8 +239,6 @@ export default function TeacherAttendance() {
           &larr; Back
         </button>
       </div>
-
-      {/* Dropdown Filter Card */}
       <div className="filter-card">
         <div>
           <label htmlFor="subject-select">Subject</label>
@@ -261,7 +260,6 @@ export default function TeacherAttendance() {
             ))}
           </select>
         </div>
-
         <div>
           <label htmlFor="date-select">Date</label>
           <select
@@ -282,7 +280,6 @@ export default function TeacherAttendance() {
             ))}
           </select>
         </div>
-
         <div>
           <label htmlFor="time-select">Lecture Time</label>
           <select
@@ -304,28 +301,21 @@ export default function TeacherAttendance() {
           </select>
         </div>
       </div>
-
-        {/* Monthly Attendance Report */}
         <div className="monthly-report-card">
 
           <div className="monthly-report-header">
             <div>
               <h2>Monthly Attendance Report</h2>
-
               <p>
                 Download attendance report and defaulter list
               </p>
             </div>
           </div>
-
           <div className="monthly-report-controls">
-
             <div className="month-selector">
-
               <label htmlFor="month-select">
                 Select Month
               </label>
-
               <select
                 id="month-select"
                 value={selectedMonth}
@@ -334,16 +324,12 @@ export default function TeacherAttendance() {
                 }
                 disabled={months.length === 0}
               >
-
                 <option value="">
                   Select Month
                 </option>
-
                 {months.map((month) => {
-
                   const [year, monthNumber] =
                     month.split("-");
-
                   const monthName = new Date(
                     Number(year),
                     Number(monthNumber) - 1,
@@ -355,7 +341,6 @@ export default function TeacherAttendance() {
                       year: "numeric"
                     }
                   );
-
                   return (
                     <option
                       key={month}
@@ -365,13 +350,9 @@ export default function TeacherAttendance() {
                     </option>
                   );
                 })}
-
               </select>
-
             </div>
-
             <div className="report-buttons">
-
               <button
                 className="excel-btn"
                 onClick={() =>
@@ -386,7 +367,6 @@ export default function TeacherAttendance() {
                   ? "Generating..."
                   : "📊 Download Monthly Attendance"}
               </button>
-
               <button
                 className="defaulter-btn"
                 onClick={() =>
@@ -401,13 +381,9 @@ export default function TeacherAttendance() {
                   ? "Generating..."
                   : "⚠ Download Defaulter List"}
               </button>
-
             </div>
-
           </div>
-
         </div>
-      {/* Current Session Summary Details */}
       {currentLecture && (
         <div className="table-card" style={{ marginBottom: 25 }}>
           <div style={{ padding: 25 }}>
@@ -420,38 +396,29 @@ export default function TeacherAttendance() {
           </div>
         </div>
       )}
-
-      {/* Metrics Card */}
       <div className="summary-cards">
-
         <div className="summary-card">
             <h2>{students.length}</h2>
             <span>Total Students</span>
         </div>
-
         <div className="summary-card green">
             <h2>
                 {students.filter(
                     (s) => s.status === "Present"
                 ).length}
             </h2>
-
             <span>Present</span>
         </div>
-
         <div className="summary-card red">
             <h2>
                 {students.filter(
                     (s) => s.status === "Absent"
                 ).length}
             </h2>
-
             <span>Absent</span>
         </div>
 
     </div>
-
-      {/* Student List Table */}
       <div className="table-card">
         {loading || studentsLoading ? (
           <h2 style={{ padding: 30 }}>Loading...</h2>
@@ -463,12 +430,19 @@ export default function TeacherAttendance() {
                 <th>Name</th>
                 <th>Status</th>
                 <th>Time</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan={4} style={{ textAlign: "center", padding: "20px" }}>
+                  <td
+                    colSpan={5}
+                    style={{
+                      textAlign: "center",
+                      padding: "20px",
+                    }}
+                  >
                     No Attendance Found
                   </td>
                 </tr>
@@ -479,16 +453,42 @@ export default function TeacherAttendance() {
                     <td>{student.student_name}</td>
                     <td>
                       <span
-                          className={
-                              student.status === "Present"
-                                  ? "status present"
-                                  : "status absent"
-                          }
+                        className={
+                          student.status === "Present"
+                            ? "status present"
+                            : "status absent"
+                        }
                       >
-                          {student.status}
+                        {student.status}
                       </span>
                     </td>
-                    <td>{student.attendance_time}</td>
+                    <td>
+                      {student.attendance_time}
+                    </td>
+                    <td>
+                      {student.status === "Absent" ? (
+                        <button
+                          className="mark-present-btn"
+                          onClick={() =>
+                            markStudentPresent(
+                              student.prn,
+                              student.student_name
+                            )
+                          }
+                        >
+                          ✓ Mark Present
+                        </button>
+                      ) : (
+                        <span
+                          style={{
+                            color: "#6b7280",
+                            fontSize: "13px",
+                          }}
+                        >
+                          —
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))
               )}
