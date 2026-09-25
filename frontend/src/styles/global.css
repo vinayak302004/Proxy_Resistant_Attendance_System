@@ -1,46 +1,173 @@
+:root {
+  --rit-yellow: #ffca08;
+  --rit-yellow-dark: #e8b600;
+  --rit-yellow-light: #fffbea;
+  --rit-cream: #fffdf2;
+  --text-primary: #111111;
+  --text-secondary: #666666;
+  --border-light: #eadfba;
+  --border-default: #d6d6d6;
+  --white: #ffffff;
+  --success: #16a34a;
+  --danger: #dc2626;
+}
+* {
+  box-sizing: border-box;
+}
+html {
+  margin: 0;
+  padding: 0;
+  scroll-behavior: smooth;
+}
 body {
   margin: 0;
-  font-family: 'Segoe UI', sans-serif;
-  background: #eef2f7;
+  padding: 0;
+  font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+  background: var(--rit-cream);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
-
-/* COMMON CARD STYLE */
-.card {
-  background: white;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
-
-/* HEADER */
-.header {
-  background: #2f5fa7;
-  color: white;
-  padding: 14px;
-  font-weight: 600;
-  border-radius: 10px 10px 0 0;
-}
-
-/* BUTTON */
 button {
-  background: #2f5fa7;
-  color: white;
-  border: none;
-  padding: 10px;
-  border-radius: 5px;
   cursor: pointer;
-  font-weight: 500;
 }
-
-button:hover {
-  background: #244a85;
+button:disabled {
+  cursor: not-allowed;
 }
-
-/* INPUTS */
-input, select {
+.card {
+  background: var(--white);
+  border: 1px solid #f0e2a5;
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+}
+.header {
+  background: var(--rit-yellow);
+  color: var(--text-primary);
+  padding: 15px 18px;
+  font-weight: 700;
+  border-radius: 10px 10px 0 0;
+  box-sizing: border-box;
+}
+button {
+  border: none;
+  background: var(--rit-yellow);
+  color: var(--text-primary);
+  padding: 10px 16px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  transition:
+    background-color 0.18s ease,
+    transform 0.12s ease,
+    box-shadow 0.18s ease;
+}
+button:hover:not(:disabled) {
+  background: var(--rit-yellow-dark);
+  box-shadow: 0 4px 10px rgba(255, 202, 8, 0.28);
+}
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+button:disabled {
+  background: #eadfae;
+  color: #777777;
+  box-shadow: none;
+}
+input,
+select {
   width: 100%;
-  padding: 10px;
+  min-height: 42px;
+  padding: 9px 12px;
   margin-top: 8px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+input:hover,
+select:hover {
+  border-color: #c8a600;
+}
+input:focus,
+select:focus {
+  border-color: var(--rit-yellow);
+  box-shadow: 0 0 0 3px rgba(255, 202, 8, 0.2);
+}
+input::placeholder {
+  color: #999999;
+}
+input[type="file"] {
+  height: auto;
+  min-height: 42px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+input[type="file"]::file-selector-button {
+  margin-right: 10px;
+  padding: 7px 12px;
+  border: none;
   border-radius: 5px;
-  border: 1px solid #ccc;
+  background: var(--rit-yellow);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+select {
+  cursor: pointer;
+}
+textarea {
+  width: 100%;
+  min-height: 100px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 7px;
+  background: var(--white);
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  resize: vertical;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+}
+textarea:focus {
+  border-color: var(--rit-yellow);
+  box-shadow: 0 0 0 3px rgba(255, 202, 8, 0.2);
+}
+@media (max-width: 768px) {
+  .card {
+    padding: 18px;
+    border-radius: 11px;
+  }
+  .header {
+    padding: 13px 15px;
+  }
+  button {
+    min-height: 42px;
+  }
+  input,
+  select {
+    min-height: 42px;
+  }
+}
+@media (max-width: 480px) {
+  .card {
+    padding: 16px;
+  }
+  button {
+    padding: 10px 14px;
+  }
 }
