@@ -387,3 +387,42 @@
     margin-top: 30px;
   }
 }
+.admin-header-content {
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+.admin-rit-logo {
+  width: 95px;
+  height: 95px;
+  object-fit: contain;
+  margin-left: -225px;
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 4px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.admin-header h1 {
+  margin: 0;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .admin-header-content {
+    gap: 10px;
+    padding: 0 12px;
+  }
+  .admin-rit-logo {
+    width: 46px;
+    height: 46px;
+  }
+  .admin-header h1 {
+    font-size: 17px;
+    line-height: 1.3;
+  }
+}
