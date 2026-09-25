@@ -6,7 +6,7 @@ from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
 import cv2
 import numpy as np
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, send_from_directory
 from flask_cors import CORS
 import firebase_admin
 from firebase_admin import credentials
@@ -681,7 +681,426 @@ def get_student_profile(prn):
             "message":
                 str(e)
         }), 500
-    
+
+# =========================================
+# STUDENT PROFILE PHOTO UPLOAD
+# =========================================
+
+@app.route(
+    "/student/profile/photo",
+    methods=["POST"]
+)
+def update_student_profile_photo():
+
+    try:
+
+        # -----------------------------------------
+        # Verify Firebase authentication
+        # -----------------------------------------
+
+        decoded_token = verify_firebase_token()
+
+        firebase_email = (
+            decoded_token.get("email") or ""
+        ).strip().lower()
+
+
+        if not firebase_email:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Firebase account email not found."
+            }), 401
+
+
+        # -----------------------------------------
+        # Get PRN
+        # -----------------------------------------
+
+        prn = (
+            request.form.get("prn") or ""
+        ).strip()
+
+
+        if not prn:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "PRN is required."
+            }), 400
+
+
+        # -----------------------------------------
+        # Get uploaded photo
+        # -----------------------------------------
+
+        photo = request.files.get("photo")
+
+
+        if not photo:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Please select a photo."
+            }), 400
+
+
+        # -----------------------------------------
+        # Validate file extension
+        # -----------------------------------------
+
+        original_filename = (
+            photo.filename or ""
+        ).strip()
+
+
+        if not original_filename:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Invalid photo filename."
+            }), 400
+
+
+        allowed_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        }
+
+
+        extension = os.path.splitext(
+            original_filename
+        )[1].lower()
+
+
+        if extension not in allowed_extensions:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Only JPG, JPEG, PNG and WEBP images are allowed."
+            }), 400
+
+
+        # -----------------------------------------
+        # Connect to MySQL
+        # -----------------------------------------
+
+        conn = get_db_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+
+        # -----------------------------------------
+        # Find student
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                prn,
+                email,
+                face_folder
+            FROM students
+            WHERE prn = %s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+
+        student = cursor.fetchone()
+
+
+        if not student:
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student not found."
+            }), 404
+
+
+        # -----------------------------------------
+        # Security:
+        # Make sure logged-in Firebase email
+        # belongs to this student.
+        # -----------------------------------------
+
+        student_email = (
+            student["email"] or ""
+        ).strip().lower()
+
+
+        if firebase_email != student_email:
+
+            cursor.close()
+            conn.close()
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "You are not authorized to update this student's photo."
+            }), 403
+
+
+        # -----------------------------------------
+        # Determine student folder
+        # -----------------------------------------
+
+        face_folder = str(
+            student["face_folder"] or prn
+        ).strip()
+
+
+        dataset_path = os.path.join(
+            os.path.dirname(__file__),
+            "dataset"
+        )
+
+
+        student_folder = os.path.join(
+            dataset_path,
+            face_folder
+        )
+
+
+        os.makedirs(
+            student_folder,
+            exist_ok=True
+        )
+
+
+        # -----------------------------------------
+        # Delete old profile images
+        # -----------------------------------------
+
+        for filename in os.listdir(
+            student_folder
+        ):
+
+            old_file_path = os.path.join(
+                student_folder,
+                filename
+            )
+
+
+            if not os.path.isfile(
+                old_file_path
+            ):
+                continue
+
+
+            old_extension = os.path.splitext(
+                filename
+            )[1].lower()
+
+
+            if old_extension in allowed_extensions:
+
+                try:
+
+                    os.remove(
+                        old_file_path
+                    )
+
+                except Exception as delete_error:
+
+                    print(
+                        "OLD PHOTO DELETE ERROR:",
+                        str(delete_error)
+                    )
+
+
+        # -----------------------------------------
+        # Save new profile photo
+        # -----------------------------------------
+
+        new_filename = (
+            "image_1" + extension
+        )
+
+
+        new_file_path = os.path.join(
+            student_folder,
+            new_filename
+        )
+
+
+        photo.save(
+            new_file_path
+        )
+
+
+        # -----------------------------------------
+        # Close DB
+        # -----------------------------------------
+
+        cursor.close()
+        conn.close()
+
+
+        print(
+            f"PROFILE PHOTO UPDATED: "
+            f"{prn} -> {new_file_path}"
+        )
+
+
+        return jsonify({
+
+            "success": True,
+
+            "message":
+                "Profile photo updated successfully.",
+
+            "prn":
+                prn,
+
+            "photo_url":
+                f"/student/photo/{prn}"
+
+        }), 200
+
+
+    except Exception as e:
+
+        print(
+            "STUDENT PHOTO UPLOAD ERROR:",
+            str(e)
+        )
+
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                str(e)
+
+        }), 500
+
+@app.route(
+    "/student/photo/<prn>",
+    methods=["GET"]
+)
+def get_student_photo(prn):
+    try:
+        prn = str(prn).strip()
+
+        if not prn:
+            return jsonify({
+                "success": False,
+                "message": "PRN is required."
+            }), 400
+
+        # Get student information from MySQL
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            """
+            SELECT
+                prn,
+                face_folder
+            FROM students
+            WHERE prn = %s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+        student = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        if not student:
+            return jsonify({
+                "success": False,
+                "message": "Student not found."
+            }), 404
+
+        face_folder = str(
+            student["face_folder"] or prn
+        ).strip()
+
+        # Dataset folder
+        dataset_path = os.path.join(
+            os.path.dirname(__file__),
+            "dataset"
+        )
+
+        student_folder = os.path.join(
+            dataset_path,
+            face_folder
+        )
+
+        if not os.path.isdir(student_folder):
+            return jsonify({
+                "success": False,
+                "message": "Student photo folder not found."
+            }), 404
+
+        # Find the student's saved image
+        allowed_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        }
+
+        image_filename = None
+
+        for filename in os.listdir(student_folder):
+
+            file_path = os.path.join(
+                student_folder,
+                filename
+            )
+
+            if not os.path.isfile(file_path):
+                continue
+
+            extension = os.path.splitext(
+                filename
+            )[1].lower()
+
+            if extension in allowed_extensions:
+                image_filename = filename
+                break
+
+        if not image_filename:
+            return jsonify({
+                "success": False,
+                "message": "Student photo not found."
+            }), 404
+
+        return send_from_directory(
+            student_folder,
+            image_filename
+        )
+
+    except Exception as e:
+        print(
+            "STUDENT PHOTO ERROR:",
+            str(e)
+        )
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
 @app.route("/student/attendance/<prn>", methods=["GET"])
 def student_attendance(prn):
     try:
