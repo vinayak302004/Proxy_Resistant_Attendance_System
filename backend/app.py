@@ -1104,133 +1104,91 @@ def attendance_by_session(session_id):
                 })
             else:
                 final_list.append({
-
                     "prn":
                         prn,
-
                     "student_name":
                         student["full_name"],
-
                     "status":
                         "Absent",
-
                     "attendance_time":
                         "-"
-
                 })
-
         cursor.close()
         conn.close()
-
         cursor = None
         conn = None
-
         present_count = sum(
             1
             for student in final_list
             if student["status"] == "Present"
         )
-
         absent_count = sum(
             1
             for student in final_list
             if student["status"] == "Absent"
         )
-
         return jsonify({
-
             "success": True,
-
             "session": {
-
                 "session_id":
                     session["session_id"],
-
                 "teacher_id":
                     session["teacher_id"],
-
                 "subject":
                     session["subject"],
-
                 "department":
                     session["department"],
-
                 "year":
                     session["year"],
-
                 "lecture_date":
                     str(
                         session["lecture_date"]
                     )
                     if session["lecture_date"]
                     else "",
-
                 "start_time":
                     str(
                         session["start_time"]
                     )
                     if session["start_time"]
                     else "",
-
                 "end_time":
                     str(
                         session["end_time"]
                     )
                     if session["end_time"]
                     else "",
-
                 "status":
                     session["status"]
-
             },
-
             "summary": {
-
                 "total":
                     len(final_list),
-
                 "present":
                     present_count,
-
                 "absent":
                     absent_count
-
             },
-
             "students":
                 final_list
-
         }), 200
-
-
     except Exception as e:
-
         print(
             "ATTENDANCE BY SESSION ERROR:",
             str(e)
         )
-
         try:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/teacher/attendance/mark-present",
     methods=["POST"]
@@ -1238,63 +1196,47 @@ def attendance_by_session(session_id):
 def teacher_mark_present():
     conn = None
     cursor = None
-
     try:
         data = request.get_json()
-
         if not data:
             return jsonify({
                 "success": False,
                 "message": "No attendance data received."
             }), 400
-
         teacher_id = str(
             data.get("teacher_id", "")
         ).strip()
-
         session_id = str(
             data.get("session_id", "")
         ).strip()
-
         prn = str(
             data.get("prn", "")
         ).strip()
-
         if not teacher_id:
             return jsonify({
                 "success": False,
                 "message": "Teacher ID is required."
             }), 400
-
         if not session_id:
             return jsonify({
                 "success": False,
                 "message": "Session ID is required."
             }), 400
-
         if not prn:
             return jsonify({
                 "success": False,
                 "message": "PRN is required."
             }), 400
-
         print("============================================")
         print("FACULTY MANUAL ATTENDANCE CORRECTION")
         print("Teacher ID:", teacher_id)
         print("Session ID:", session_id)
         print("PRN:", prn)
         print("============================================")
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-        # ----------------------------------------------------
-        # Get teacher
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             SELECT
@@ -1306,19 +1248,12 @@ def teacher_mark_present():
             """,
             (teacher_id,)
         )
-
         teacher = cursor.fetchone()
-
         if not teacher:
             return jsonify({
                 "success": False,
                 "message": "Teacher not found."
             }), 404
-
-        # ----------------------------------------------------
-        # Get session
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             SELECT
@@ -1337,65 +1272,42 @@ def teacher_mark_present():
             """,
             (session_id,)
         )
-
         session = cursor.fetchone()
-
         if not session:
             return jsonify({
                 "success": False,
                 "message": "Attendance session not found."
             }), 404
-
-        # ----------------------------------------------------
-        # IMPORTANT:
-        # Make sure this teacher owns this session.
-        #
-        # We also support old Firebase UID sessions.
-        # ----------------------------------------------------
-
         allowed_teacher_ids = [
             str(teacher_id).strip()
         ]
-
         try:
             teacher_email = str(
                 teacher.get("email", "")
             ).strip().lower()
-
             if teacher_email:
                 firebase_user = auth.get_user_by_email(
                     teacher_email
                 )
-
                 firebase_uid = firebase_user.uid
-
                 if firebase_uid not in allowed_teacher_ids:
                     allowed_teacher_ids.append(
                         firebase_uid
                     )
-
         except Exception as firebase_error:
-
             print(
                 "Firebase teacher lookup skipped:",
                 firebase_error
             )
-
         session_teacher_id = str(
             session["teacher_id"]
         ).strip()
-
         if session_teacher_id not in allowed_teacher_ids:
             return jsonify({
                 "success": False,
                 "message":
                     "You are not authorized to modify this attendance session."
             }), 403
-
-        # ----------------------------------------------------
-        # Get student
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             SELECT
@@ -1409,19 +1321,12 @@ def teacher_mark_present():
             """,
             (prn,)
         )
-
         student = cursor.fetchone()
-
         if not student:
             return jsonify({
                 "success": False,
                 "message": "Student not found."
             }), 404
-
-        # ----------------------------------------------------
-        # Verify student belongs to this session's class
-        # ----------------------------------------------------
-
         if (
             str(student["branch"]).strip()
             != str(session["department"]).strip()
@@ -1431,7 +1336,6 @@ def teacher_mark_present():
                 "message":
                     "Student does not belong to this department."
             }), 403
-
         if (
             str(student["year"]).strip()
             != str(session["year"]).strip()
@@ -1441,11 +1345,6 @@ def teacher_mark_present():
                 "message":
                     "Student does not belong to this class."
             }), 403
-
-        # ----------------------------------------------------
-        # Check existing attendance
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             SELECT
@@ -1462,15 +1361,8 @@ def teacher_mark_present():
                 prn
             )
         )
-
         existing = cursor.fetchone()
-
-        # ----------------------------------------------------
-        # Already present
-        # ----------------------------------------------------
-
         if existing:
-
             if existing["status"] == "Present":
                 return jsonify({
                     "success": True,
@@ -1480,11 +1372,6 @@ def teacher_mark_present():
                     "prn": prn,
                     "name": student["full_name"]
                 }), 200
-
-            # ------------------------------------------------
-            # If an Absent row exists, update it.
-            # ------------------------------------------------
-
             cursor.execute(
                 """
                 UPDATE attendance
@@ -1501,16 +1388,7 @@ def teacher_mark_present():
                     existing["attendance_id"]
                 )
             )
-
         else:
-
-            # ------------------------------------------------
-            # Normal case:
-            # Absent means no attendance row exists.
-            #
-            # Create a Present record.
-            # ------------------------------------------------
-
             cursor.execute(
                 """
                 INSERT INTO attendance
@@ -1554,9 +1432,7 @@ def teacher_mark_present():
                     session["lecture_date"]
                 )
             )
-
         conn.commit()
-
         print("MANUAL ATTENDANCE UPDATED SUCCESSFULLY")
         print("PRN:", prn)
         print("Student:", student["full_name"])
@@ -1570,70 +1446,50 @@ def teacher_mark_present():
             "name": student["full_name"],
             "session_id": session_id
         }), 200
-
     except Exception as e:
-
         print(
             "MANUAL ATTENDANCE ERROR:",
             str(e)
         )
-
         try:
             if conn:
                 conn.rollback()
         except Exception:
             pass
-
         return jsonify({
             "success": False,
             "message": str(e)
         }), 500
-
     finally:
-
         try:
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-
 @app.route(
     "/teacher/attendance",
     methods=["GET"]
 )
 def teacher_attendance():
-
     department = request.args.get(
         "department"
     )
-
     year = request.args.get(
         "year"
     )
-
     subject = request.args.get(
         "subject"
     )
-
     date = request.args.get(
         "date"
     )
-
-
     try:
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-
         cursor.execute(
             """
             SELECT
@@ -1655,71 +1511,44 @@ def teacher_attendance():
                 date
             )
         )
-
-
         students = cursor.fetchall()
-
-
         for row in students:
-
             if row["attendance_time"]:
-
                 row["attendance_time"] = str(
                     row["attendance_time"]
                 )
-
-
         cursor.close()
         conn.close()
-
-
         return jsonify({
-
             "success": True,
-
             "students":
                 students
-
         })
-
-
     except Exception as e:
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/teacher/sessions/<teacher_id>",
     methods=["GET"]
 )
 def teacher_sessions(teacher_id):
-
     conn = None
     cursor = None
-
     try:
-
         teacher_id = str(
             teacher_id
         ).strip()
-
         print("============================================")
         print("TEACHER SESSIONS REQUEST")
         print("Teacher ID:", teacher_id)
         print("============================================")
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
         cursor.execute(
             """
             SELECT
@@ -1733,59 +1562,38 @@ def teacher_sessions(teacher_id):
             """,
             (teacher_id,)
         )
-
         teacher = cursor.fetchone()
-
-
         if not teacher:
-
             print(
                 "TEACHER NOT FOUND:",
                 teacher_id
             )
-
             return jsonify({
-
                 "success": False,
-
                 "message":
                     "Teacher not found."
-
             }), 404
-
-
         print("Teacher found:")
         print(teacher)
-
-
         teacher_email = str(
             teacher["email"]
         ).strip().lower()
-
         firebase_uid = None
-
         try:
-
             firebase_user = auth.get_user_by_email(
                 teacher_email
             )
-
             firebase_uid = firebase_user.uid
-
             print(
                 "Firebase UID:",
                 firebase_uid
             )
-
         except Exception as firebase_error:
-
             print(
                 "Could not find Firebase user:",
                 firebase_error
             )
-
         if firebase_uid:
-
             cursor.execute(
                 """
                 SELECT
@@ -1810,9 +1618,7 @@ def teacher_sessions(teacher_id):
                     firebase_uid
                 )
             )
-
         else:
-
             cursor.execute(
                 """
                 SELECT
@@ -1833,149 +1639,100 @@ def teacher_sessions(teacher_id):
                 """,
                 (teacher_id,)
             )
-
-
         sessions = cursor.fetchall()
-
-
         print(
             "Total sessions found:",
             len(sessions)
         )
-
         for session in sessions:
-
             if session["lecture_date"]:
-
                 session["lecture_date"] = str(
                     session["lecture_date"]
                 )
-
-
             if session["start_time"]:
-
                 session["start_time"] = str(
                     session["start_time"]
                 )
-
-
             if session["end_time"]:
-
                 session["end_time"] = str(
                     session["end_time"]
                 )
-
         cursor.close()
         conn.close()
-
         cursor = None
         conn = None
-
-
         return jsonify({
-
             "success": True,
-
             "teacher_id":
                 teacher_id,
-
             "sessions":
                 sessions
-
         }), 200
-
-
     except Exception as e:
-
         print(
             "TEACHER SESSIONS ERROR:",
             str(e)
         )
-
-
         try:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
-
 @app.route(
     "/verify-face",
     methods=["POST"]
 )
 def verify_face_api():
-
     try:
-
         prn = request.form.get("prn")
         session_id = request.form.get("session_id")
-
         if not prn:
             return jsonify({
                 "success": False,
                 "verified": False,
                 "message": "PRN is required."
             }), 400
-
         if not session_id:
             return jsonify({
                 "success": False,
                 "verified": False,
                 "message": "Session ID is required."
             }), 400
-
         if "image" not in request.files:
             return jsonify({
                 "success": False,
                 "verified": False,
                 "message": "Face image is required."
             }), 400
-
         image_file = request.files["image"]
-
         image_bytes = image_file.read()
-
         image_array = np.frombuffer(
             image_bytes,
             np.uint8
         )
-
         image = cv2.imdecode(
             image_array,
             cv2.IMREAD_COLOR
         )
-
         if image is None:
             return jsonify({
                 "success": False,
                 "verified": False,
                 "message": "Invalid image."
             }), 400
-
         result = verify_face(
             image,
             prn,
             session_id
         )
-
         if not result.get("verified"):
-
             return jsonify({
                 "success": False,
                 "verified": False,
@@ -1984,94 +1741,63 @@ def verify_face_api():
                     "Face verification failed."
                 )
             }), 401
-
         return jsonify({
-
             "success": True,
-
             "verified": True,
-
             "prn":
                 result.get("prn"),
-
             "name":
                 result.get("name"),
-
             "message":
                 "Face verified successfully."
-
         }), 200
-
     except Exception as e:
-
         print(
             "VERIFY FACE ERROR:",
             str(e)
         )
-
         return jsonify({
-
             "success": False,
-
             "verified": False,
-
             "message":
                 str(e)
-
         }), 500
-
 @app.route(
     "/attendance/mark",
     methods=["POST"]
 )
 def attendance_mark():
-
     conn = None
     cursor = None
-
     try:
-
         data = request.get_json()
-
         if not data:
-
             return jsonify({
                 "success": False,
                 "message": "No attendance data received."
             }), 400
-
-
         prn = str(
             data.get("prn", "")
         ).strip()
-
         session_id = str(
             data.get("session_id", "")
         ).strip()
-
         if not prn:
-
             return jsonify({
                 "success": False,
                 "message": "PRN is required."
             }), 400
-
         if not session_id:
-
             return jsonify({
                 "success": False,
                 "message": "Session ID is required."
             }), 400
-
-
         print("============================================")
         print("MARK ATTENDANCE")
         print("PRN:", prn)
         print("Session ID:", session_id)
         print("============================================")
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
@@ -2088,17 +1814,12 @@ def attendance_mark():
             """,
             (prn,)
         )
-
         student = cursor.fetchone()
-
-
         if not student:
-
             return jsonify({
                 "success": False,
                 "message": "Student not found."
             }), 404
-
         cursor.execute(
             """
             SELECT
@@ -2115,45 +1836,34 @@ def attendance_mark():
             """,
             (session_id,)
         )
-
         session = cursor.fetchone()
-
-
         if not session:
-
             return jsonify({
                 "success": False,
                 "message": "Attendance session not found."
             }), 404
-
         if session["status"] != "ACTIVE":
 
             return jsonify({
                 "success": False,
                 "message": "Attendance session is no longer active."
             }), 400
-
         if (
             str(student["branch"]).strip()
             != str(session["department"]).strip()
         ):
-
             return jsonify({
                 "success": False,
                 "message": "Student does not belong to this department."
             }), 403
-
-
         if (
             str(student["year"]).strip()
             != str(session["year"]).strip()
         ):
-
             return jsonify({
                 "success": False,
                 "message": "Student does not belong to this class."
             }), 403
-
         cursor.execute(
             """
             SELECT
@@ -2168,29 +1878,18 @@ def attendance_mark():
                 prn
             )
         )
-
         existing = cursor.fetchone()
-
-
         if existing:
-
             return jsonify({
-
                 "success": True,
-
                 "message":
                     "Attendance already marked.",
-
                 "already_marked": True,
-
                 "prn":
                     prn,
-
                 "name":
                     student["full_name"]
-
             }), 200
-
         cursor.execute(
             """
             INSERT INTO attendance
@@ -2234,159 +1933,91 @@ def attendance_mark():
                 session["lecture_date"]
             )
         )
-
-
         conn.commit()
-
         print("ATTENDANCE MARKED SUCCESSFULLY")
         print("PRN:", prn)
         print("Name:", student["full_name"])
-
-
         return jsonify({
-
             "success": True,
-
             "message":
                 "Attendance marked successfully.",
-
             "already_marked":
                 False,
-
             "prn":
                 prn,
-
             "name":
                 student["full_name"],
-
             "session_id":
                 session_id
-
         }), 201
-
-
     except Exception as e:
-
         print(
             "ATTENDANCE MARK ERROR:",
             str(e)
         )
-
-
         try:
-
             if conn:
                 conn.rollback()
-
         except Exception:
             pass
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
-
     finally:
-
         try:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-# ============================================================
-# MONTHLY ATTENDANCE EXCEL
-# ============================================================
 
 @app.route(
     "/teacher/monthly-attendance/<teacher_id>/excel",
     methods=["GET"]
 )
 def monthly_attendance_excel(teacher_id):
-
     try:
-
         month = request.args.get(
             "month",
             ""
         ).strip()
-
-
         if not month:
-
             return jsonify({
                 "success": False,
                 "message": "Month is required. Example: 2026-09"
             }), 400
-
-
         teacher, report = get_monthly_attendance_data(
             teacher_id,
             month
         )
-
-
-        # ----------------------------------------------------
-        # Create Excel workbook
-        # ----------------------------------------------------
-
         workbook = Workbook()
-
         worksheet = workbook.active
-
         worksheet.title = "Monthly Attendance"
-
-
-        # ----------------------------------------------------
-        # Title
-        # ----------------------------------------------------
-
         worksheet.merge_cells(
             "A1:H1"
         )
-
         worksheet["A1"] = (
             f"Monthly Attendance Report - {month}"
         )
-
         worksheet["A1"].font = Font(
             bold=True,
             size=16
         )
-
         worksheet["A1"].alignment = Alignment(
             horizontal="center"
         )
-
-
         worksheet.merge_cells(
             "A2:H2"
         )
-
         worksheet["A2"] = (
             f"Teacher: {teacher['full_name']}"
         )
-
         worksheet["A2"].font = Font(
             bold=True
         )
-
-
-        # ----------------------------------------------------
-        # Headers
-        # ----------------------------------------------------
-
         headers = [
             "PRN",
             "Student Name",
@@ -2397,277 +2028,161 @@ def monthly_attendance_excel(teacher_id):
             "Absent",
             "Attendance %"
         ]
-
-
         header_row = 4
-
-
         for column, header in enumerate(
             headers,
             start=1
         ):
-
             cell = worksheet.cell(
                 row=header_row,
                 column=column
             )
-
             cell.value = header
-
             cell.font = Font(
                 bold=True
             )
-
             cell.alignment = Alignment(
                 horizontal="center"
             )
-
-
-        # ----------------------------------------------------
-        # Data
-        # ----------------------------------------------------
-
         for row_index, student in enumerate(
             report,
             start=5
         ):
-
             worksheet.cell(
                 row=row_index,
                 column=1,
                 value=student["prn"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=2,
                 value=student["student_name"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=3,
                 value=student["branch"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=4,
                 value=student["year"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=5,
                 value=student["total_lectures"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=6,
                 value=student["present"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=7,
                 value=student["absent"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=8,
                 value=f"{student['percentage']}%"
             )
-
-
-        # ----------------------------------------------------
-        # Auto column width
-        # ----------------------------------------------------
-
         for column_cells in worksheet.columns:
-
             max_length = 0
-
             column_letter = get_column_letter(
                 column_cells[0].column
             )
-
-
             for cell in column_cells:
-
                 if cell.value is not None:
-
                     max_length = max(
                         max_length,
                         len(str(cell.value))
                     )
-
-
             worksheet.column_dimensions[
                 column_letter
             ].width = min(
                 max_length + 3,
                 35
             )
-
-
-        # ----------------------------------------------------
-        # Freeze header
-        # ----------------------------------------------------
-
         worksheet.freeze_panes = "A5"
-
-
-        # ----------------------------------------------------
-        # Create response
-        # ----------------------------------------------------
-
         output = BytesIO()
-
         workbook.save(output)
-
         output.seek(0)
-
-
         filename = (
             f"Monthly_Attendance_{month}.xlsx"
         )
-
-
         from flask import send_file
-
-
         return send_file(
-
             output,
-
             as_attachment=True,
-
             download_name=filename,
-
             mimetype=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
             )
         )
-
-
     except Exception as e:
-
         print(
             "MONTHLY ATTENDANCE EXCEL ERROR:",
             str(e)
         )
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
-
-# ============================================================
-# MONTHLY DEFAULTER EXCEL
-# ============================================================
 
 @app.route(
     "/teacher/monthly-defaulters/<teacher_id>/excel",
     methods=["GET"]
 )
 def monthly_defaulters_excel(teacher_id):
-
     try:
-
         month = request.args.get(
             "month",
             ""
         ).strip()
-
-
         if not month:
-
             return jsonify({
                 "success": False,
                 "message": "Month is required. Example: 2026-09"
             }), 400
-
-
         teacher, report = get_monthly_attendance_data(
             teacher_id,
             month
         )
-
-
-        # ----------------------------------------------------
-        # Only students below 75%
-        # ----------------------------------------------------
-
         defaulters = [
-
             student
-
             for student in report
-
             if student["percentage"] < 75
-
         ]
-
-
-        # ----------------------------------------------------
-        # Create workbook
-        # ----------------------------------------------------
-
         workbook = Workbook()
-
         worksheet = workbook.active
-
         worksheet.title = "Defaulter List"
-
-
-        # ----------------------------------------------------
-        # Title
-        # ----------------------------------------------------
-
         worksheet.merge_cells(
             "A1:H1"
         )
-
         worksheet["A1"] = (
             f"Defaulter Attendance List - {month}"
         )
-
         worksheet["A1"].font = Font(
             bold=True,
             size=16
         )
-
         worksheet["A1"].alignment = Alignment(
             horizontal="center"
         )
-
-
         worksheet.merge_cells(
             "A2:H2"
         )
-
         worksheet["A2"] = (
             f"Teacher: {teacher['full_name']} | "
             f"Defaulter Threshold: Below 75%"
         )
-
         worksheet["A2"].font = Font(
             bold=True
         )
-
-
-        # ----------------------------------------------------
-        # Headers
-        # ----------------------------------------------------
-
         headers = [
             "PRN",
             "Student Name",
@@ -2678,253 +2193,150 @@ def monthly_defaulters_excel(teacher_id):
             "Absent",
             "Attendance %"
         ]
-
-
         for column, header in enumerate(
             headers,
             start=1
         ):
-
             cell = worksheet.cell(
                 row=4,
                 column=column
             )
-
             cell.value = header
-
             cell.font = Font(
                 bold=True
             )
-
             cell.alignment = Alignment(
                 horizontal="center"
             )
-
-
-        # ----------------------------------------------------
-        # Defaulter data
-        # ----------------------------------------------------
-
         for row_index, student in enumerate(
             defaulters,
             start=5
         ):
-
             worksheet.cell(
                 row=row_index,
                 column=1,
                 value=student["prn"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=2,
                 value=student["student_name"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=3,
                 value=student["branch"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=4,
                 value=student["year"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=5,
                 value=student["total_lectures"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=6,
                 value=student["present"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=7,
                 value=student["absent"]
             )
-
             worksheet.cell(
                 row=row_index,
                 column=8,
                 value=f"{student['percentage']}%"
             )
-
-
-        # ----------------------------------------------------
-        # If nobody is a defaulter
-        # ----------------------------------------------------
-
         if len(defaulters) == 0:
-
             worksheet.cell(
                 row=5,
                 column=1,
                 value="No defaulters found."
             )
-
-
-        # ----------------------------------------------------
-        # Auto column width
-        # ----------------------------------------------------
-
         for column_cells in worksheet.columns:
-
             max_length = 0
-
             column_letter = get_column_letter(
                 column_cells[0].column
             )
-
-
             for cell in column_cells:
-
                 if cell.value is not None:
-
                     max_length = max(
                         max_length,
                         len(str(cell.value))
                     )
-
-
             worksheet.column_dimensions[
                 column_letter
             ].width = min(
                 max_length + 3,
                 35
             )
-
-
         worksheet.freeze_panes = "A5"
-
-
-        # ----------------------------------------------------
-        # Send Excel
-        # ----------------------------------------------------
-
         output = BytesIO()
-
         workbook.save(output)
-
         output.seek(0)
-
-
         filename = (
             f"Defaulter_Attendance_{month}.xlsx"
         )
-
-
         from flask import send_file
-
-
         return send_file(
-
             output,
-
             as_attachment=True,
-
             download_name=filename,
-
             mimetype=(
                 "application/vnd.openxmlformats-officedocument."
                 "spreadsheetml.sheet"
             )
         )
-
-
     except Exception as e:
-
         print(
             "DEFAULTER EXCEL ERROR:",
             str(e)
         )
-
-
         return jsonify({
-
             "success": False,
-
             "message":
                 str(e)
-
         }), 500
     
-    
-# ============================================================
-# MONTHLY ATTENDANCE REPORT HELPER
-# ============================================================
-
 def get_monthly_attendance_data(teacher_id, month):
     """
     Get monthly attendance for all students taught by a teacher.
-
     month format:
         YYYY-MM
-
     Example:
         2026-09
     """
-
     conn = None
     cursor = None
-
     try:
-
-        # ----------------------------------------------------
-        # Validate month
-        # ----------------------------------------------------
-
         try:
             month_date = datetime.strptime(
                 month,
                 "%Y-%m"
             ).date()
-
         except ValueError:
-
             raise ValueError(
                 "Invalid month format. Use YYYY-MM."
             )
-
-
-        # First day of selected month
         first_day = month_date.replace(day=1)
-
-
-        # First day of next month
         if first_day.month == 12:
-
             next_month = first_day.replace(
                 year=first_day.year + 1,
                 month=1
             )
-
         else:
-
             next_month = first_day.replace(
                 month=first_day.month + 1
             )
-
-
         conn = get_db_connection()
-
         cursor = conn.cursor(
             dictionary=True
         )
-
-
-        # ----------------------------------------------------
-        # Get teacher
-        # ----------------------------------------------------
-
         cursor.execute(
             """
             SELECT
@@ -2938,145 +2350,73 @@ def get_monthly_attendance_data(teacher_id, month):
             """,
             (teacher_id,)
         )
-
         teacher = cursor.fetchone()
-
-
         if not teacher:
-
             raise ValueError(
                 "Teacher not found."
             )
-
-
-        # ----------------------------------------------------
-        # Existing sessions may contain either:
-        #
-        # 1. teacher_id
-        # 2. old Firebase UID
-        #
-        # Support both.
-        # ----------------------------------------------------
-
         teacher_ids = [
             str(teacher_id).strip()
         ]
-
-
         try:
-
             teacher_email = str(
                 teacher["email"]
             ).strip().lower()
-
-
             firebase_user = auth.get_user_by_email(
                 teacher_email
             )
-
-
             firebase_uid = firebase_user.uid
-
-
             if firebase_uid not in teacher_ids:
-
                 teacher_ids.append(
                     firebase_uid
                 )
-
         except Exception as firebase_error:
-
             print(
                 "Monthly report Firebase lookup skipped:",
                 firebase_error
             )
-
-
-        # ----------------------------------------------------
-        # Build dynamic IN placeholders
-        # ----------------------------------------------------
-
         placeholders = ",".join(
             ["%s"] * len(teacher_ids)
         )
-
-
-        # ----------------------------------------------------
-        # IMPORTANT:
-        #
-        # A student is counted only for sessions matching
-        # their branch + year.
-        #
-        # Missing attendance record = Absent.
-        # ----------------------------------------------------
-
         query = f"""
             SELECT
-
                 s.prn,
-
                 s.full_name,
-
                 s.branch,
-
                 s.year,
-
                 COUNT(
                     DISTINCT ses.session_id
                 ) AS total_lectures,
-
                 COUNT(
                     DISTINCT CASE
                         WHEN a.prn IS NOT NULL
                         THEN ses.session_id
                     END
                 ) AS present
-
             FROM students s
-
             INNER JOIN attendance_sessions ses
-
                 ON TRIM(s.branch)
                     = TRIM(ses.department)
-
                 AND TRIM(s.year)
                     = TRIM(ses.year)
-
-
             LEFT JOIN attendance a
-
                 ON a.session_id = ses.session_id
-
                 AND TRIM(a.prn)
                     = TRIM(s.prn)
-
-
             WHERE ses.teacher_id IN ({placeholders})
-
                 AND ses.lecture_date >= %s
-
                 AND ses.lecture_date < %s
-
-
             GROUP BY
-
                 s.prn,
                 s.full_name,
                 s.branch,
                 s.year
-
-
             HAVING total_lectures > 0
-
-
             ORDER BY
-
                 s.branch ASC,
                 s.year ASC,
                 s.full_name ASC
         """
-
-
         params = (
             teacher_ids
             + [
@@ -3084,103 +2424,61 @@ def get_monthly_attendance_data(teacher_id, month):
                 next_month
             ]
         )
-
-
         cursor.execute(
             query,
             params
         )
-
-
         rows = cursor.fetchall()
-
-
-        # ----------------------------------------------------
-        # Calculate absent + percentage
-        # ----------------------------------------------------
-
         report = []
-
-
         for row in rows:
-
             total = int(
                 row["total_lectures"] or 0
             )
-
             present = int(
                 row["present"] or 0
             )
-
             absent = total - present
-
-
             percentage = 0
-
-
             if total > 0:
-
                 percentage = round(
                     (present / total) * 100,
                     2
                 )
-
-
             status = (
                 "Defaulter"
                 if percentage < 75
                 else "Regular"
             )
-
-
             report.append({
-
                 "prn":
                     str(row["prn"]),
-
                 "student_name":
                     row["full_name"],
-
                 "branch":
                     row["branch"],
-
                 "year":
                     row["year"],
-
                 "total_lectures":
                     total,
-
                 "present":
                     present,
-
                 "absent":
                     absent,
-
                 "percentage":
                     percentage,
-
                 "status":
                     status
             })
-
-
         return teacher, report
-
-
     finally:
-
         try:
-
             if cursor:
                 cursor.close()
-
             if conn:
                 conn.close()
-
         except Exception:
             pass
-
-
+        
 if __name__ == "__main__":
 
     app.run(
