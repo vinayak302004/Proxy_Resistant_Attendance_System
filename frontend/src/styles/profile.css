@@ -238,3 +238,26 @@ body {
     font-size: 12px;
   }
 }
+.profile-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.profile-rit-logo {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 3px;
+  box-sizing: border-box;
+}
+@media (max-width: 480px) {
+  .profile-header-left {
+    gap: 10px;
+  }
+  .profile-rit-logo {
+    width: 42px;
+    height: 42px;
+  }
+}
