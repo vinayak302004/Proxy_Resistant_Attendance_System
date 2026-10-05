@@ -38,6 +38,7 @@ const departmentSubjects: {
       "Natural Language Processing"
     ]
   },
+
   CSE: {
     "First Year": [
       "Engineering Mathematics",
@@ -62,17 +63,52 @@ const departmentSubjects: {
   }
 };
 
+const theoryTimeSlots = [
+  "10:00 AM to 11:00 AM",
+  "11:00 AM to 12:00 PM",
+  "12:45 PM to 1:45 PM",
+  "1:45 PM to 2:45 PM",
+  "3:00 PM to 4:00 PM",
+  "4:00 PM to 5:00 PM"
+];
+
+const labTimeSlots = [
+  "10:00 AM to 12:00 PM",
+  "12:45 PM to 2:45 PM",
+  "3:00 PM to 5:00 PM"
+];
+
 export default function Dashboard() {
   const [teacher, setTeacher] = useState<any>(null);
-  const [attendanceActive, setAttendanceActive] = useState(false);
+
+  const [attendanceActive, setAttendanceActive] =
+    useState(false);
+
   const [sessionId, setSessionId] = useState("");
   const [qrToken, setQrToken] = useState("");
-  const [liveAttendance, setLiveAttendance] = useState<any[]>([]);
-  const [sessionInfo, setSessionInfo] = useState<any>(null);
 
-  const [selectedDepartment, setSelectedDepartment] = useState("");
-  const [selectedYear, setSelectedYear] = useState("");
-  const [selectedSubject, setSelectedSubject] = useState("");
+  const [liveAttendance, setLiveAttendance] =
+    useState<any[]>([]);
+
+  const [sessionInfo, setSessionInfo] =
+    useState<any>(null);
+
+  const [selectedDepartment, setSelectedDepartment] =
+    useState("");
+
+  const [selectedYear, setSelectedYear] =
+    useState("");
+
+  const [selectedSubject, setSelectedSubject] =
+    useState("");
+
+  // NEW
+  const [sessionType, setSessionType] =
+    useState("");
+
+  // NEW
+  const [selectedTimeSlot, setSelectedTimeSlot] =
+    useState("");
 
   const intervalRef = useRef<any>(null);
   const liveIntervalRef = useRef<any>(null);
@@ -85,7 +121,8 @@ export default function Dashboard() {
       return;
     }
 
-    const teacherId = localStorage.getItem("teacher_id");
+    const teacherId =
+      localStorage.getItem("teacher_id");
 
     if (teacherId) {
       fetch(
@@ -96,7 +133,10 @@ export default function Dashboard() {
           setTeacher(data);
         })
         .catch((err) => {
-          console.error("Failed to load teacher profile:", err);
+          console.error(
+            "Failed to load teacher profile:",
+            err
+          );
         });
     }
 
@@ -115,9 +155,13 @@ export default function Dashboard() {
     if (
       !selectedDepartment ||
       !selectedYear ||
-      !selectedSubject
+      !selectedSubject ||
+      !sessionType ||
+      !selectedTimeSlot
     ) {
-      alert("⚠ Please select department, year and subject");
+      alert(
+        "⚠ Please select department, year, subject, theory/lab and time slot"
+      );
       return;
     }
 
@@ -127,10 +171,13 @@ export default function Dashboard() {
         const lng = pos.coords.longitude;
 
         try {
-          const teacherId = localStorage.getItem("teacher_id");
+          const teacherId =
+            localStorage.getItem("teacher_id");
 
           if (!teacherId) {
-            alert("❌ Teacher ID not found. Please login again.");
+            alert(
+              "❌ Teacher ID not found. Please login again."
+            );
             return;
           }
 
@@ -141,11 +188,17 @@ export default function Dashboard() {
               headers: {
                 "Content-Type": "application/json"
               },
+
               body: JSON.stringify({
                 teacher_id: teacherId,
                 department: selectedDepartment,
                 year: selectedYear,
                 subject: selectedSubject,
+
+                // NEW
+                session_type: sessionType,
+                time_slot: selectedTimeSlot,
+
                 lat,
                 lng
               })
@@ -162,8 +215,11 @@ export default function Dashboard() {
             return;
           }
 
-          let currentSession = result.session_id;
-          let currentQrToken = result.qr_token;
+          let currentSession =
+            result.session_id;
+
+          let currentQrToken =
+            result.qr_token;
 
           setSessionId(currentSession);
           setQrToken(currentQrToken);
@@ -172,94 +228,149 @@ export default function Dashboard() {
             subject: selectedSubject,
             department: selectedDepartment,
             year: selectedYear,
-            start_time: new Date().toLocaleTimeString()
+
+            // NEW
+            session_type: sessionType,
+            time_slot: selectedTimeSlot,
+
+            start_time:
+              new Date().toLocaleTimeString()
           });
 
-          intervalRef.current = setInterval(async () => {
-            try {
-              const res = await fetch(
-                `http://${window.location.hostname}:5000/attendance/refresh`,
-                {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json"
-                  },
-                  body: JSON.stringify({
-                    session_id: currentSession
-                  })
+          intervalRef.current =
+            setInterval(async () => {
+              try {
+                const res = await fetch(
+                  `http://${window.location.hostname}:5000/attendance/refresh`,
+                  {
+                    method: "POST",
+
+                    headers: {
+                      "Content-Type":
+                        "application/json"
+                    },
+
+                    body: JSON.stringify({
+                      session_id:
+                        currentSession
+                    })
+                  }
+                );
+
+                const data =
+                  await res.json();
+
+                if (!data.success) {
+                  clearInterval(
+                    intervalRef.current
+                  );
+
+                  setAttendanceActive(false);
+                  setSessionId(
+                    "SESSION_ENDED"
+                  );
+
+                  return;
                 }
-              );
 
-              const data = await res.json();
+                if (data.session_id) {
+                  currentSession =
+                    data.session_id;
 
-              if (!data.success) {
-                clearInterval(intervalRef.current);
-                setAttendanceActive(false);
-                setSessionId("SESSION_ENDED");
-                return;
-              }
+                  setSessionId(
+                    currentSession
+                  );
+                }
 
-              if (data.session_id) {
-                currentSession = data.session_id;
-                setSessionId(currentSession);
-              }
+                if (data.qr_token) {
+                  console.log(
+                    "OLD TOKEN :",
+                    currentQrToken
+                  );
 
-              if (data.qr_token) {
-                console.log(
-                  "OLD TOKEN :",
-                  currentQrToken
+                  console.log(
+                    "NEW TOKEN :",
+                    data.qr_token
+                  );
+
+                  currentQrToken =
+                    data.qr_token;
+
+                  setQrToken(
+                    data.qr_token
+                  );
+                }
+              } catch (err) {
+                console.error(
+                  "Refresh Error:",
+                  err
                 );
-                console.log(
-                  "NEW TOKEN :",
-                  data.qr_token
-                );
-
-                currentQrToken = data.qr_token;
-                setQrToken(data.qr_token);
               }
-            } catch (err) {
-              console.error("Refresh Error:", err);
-            }
-          }, 8000);
+            }, 8000);
 
           setAttendanceActive(true);
           setLiveAttendance([]);
 
-          liveIntervalRef.current = setInterval(async () => {
-            console.log("Refreshing QR...");
+          liveIntervalRef.current =
+            setInterval(async () => {
+              try {
+                const res =
+                  await fetch(
+                    `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
+                  );
 
-            try {
-              const res = await fetch(
-                `http://${window.location.hostname}:5000/attendance/live/${currentSession}`
-              );
+                if (!res.ok) {
+                  clearInterval(
+                    liveIntervalRef.current
+                  );
 
-              if (!res.ok) {
-                clearInterval(liveIntervalRef.current);
-                liveIntervalRef.current = null;
-                return;
+                  liveIntervalRef.current =
+                    null;
+
+                  return;
+                }
+
+                const data =
+                  await res.json();
+
+                if (data.success) {
+                  setSessionInfo(
+                    data.session
+                  );
+
+                  setLiveAttendance(
+                    data.students
+                  );
+                } else {
+                  clearInterval(
+                    liveIntervalRef.current
+                  );
+
+                  liveIntervalRef.current =
+                    null;
+                }
+              } catch (err) {
+                clearInterval(
+                  liveIntervalRef.current
+                );
+
+                liveIntervalRef.current =
+                  null;
               }
-
-              const data = await res.json();
-
-              if (data.success) {
-                setSessionInfo(data.session);
-                setLiveAttendance(data.students);
-              } else {
-                clearInterval(liveIntervalRef.current);
-                liveIntervalRef.current = null;
-              }
-            } catch (err) {
-              clearInterval(liveIntervalRef.current);
-              liveIntervalRef.current = null;
-            }
-          }, 2000);
+            }, 2000);
         } catch (err) {
           console.error(err);
-          alert("❌ Failed to start attendance");
+
+          alert(
+            "❌ Failed to start attendance"
+          );
         }
       },
+
       () => {
-        alert("❌ Location permission required.");
+        alert(
+          "❌ Location permission required."
+        );
       }
     );
   };
@@ -267,11 +378,15 @@ export default function Dashboard() {
   const stopSession = async () => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
+
       intervalRef.current = null;
     }
 
     if (liveIntervalRef.current) {
-      clearInterval(liveIntervalRef.current);
+      clearInterval(
+        liveIntervalRef.current
+      );
+
       liveIntervalRef.current = null;
     }
 
@@ -316,7 +431,10 @@ export default function Dashboard() {
       </header>
 
       <div className="container">
+
+        {/* LEFT CARD */}
         <div className="card">
+
           <h2>
             Welcome,
             <br />
@@ -327,12 +445,17 @@ export default function Dashboard() {
 
           <p>{teacher?.department}</p>
 
+          {/* DEPARTMENT */}
           <label>Select Department</label>
 
           <select
             value={selectedDepartment}
+            disabled={attendanceActive}
             onChange={(e) => {
-              setSelectedDepartment(e.target.value);
+              setSelectedDepartment(
+                e.target.value
+              );
+
               setSelectedYear("");
               setSelectedSubject("");
             }}
@@ -350,13 +473,20 @@ export default function Dashboard() {
             </option>
           </select>
 
+          {/* YEAR */}
           <label>Select Year</label>
 
           <select
             value={selectedYear}
-            disabled={!selectedDepartment}
+            disabled={
+              !selectedDepartment ||
+              attendanceActive
+            }
             onChange={(e) => {
-              setSelectedYear(e.target.value);
+              setSelectedYear(
+                e.target.value
+              );
+
               setSelectedSubject("");
             }}
           >
@@ -381,13 +511,19 @@ export default function Dashboard() {
             </option>
           </select>
 
+          {/* SUBJECT */}
           <label>Select Subject</label>
 
           <select
             value={selectedSubject}
-            disabled={!selectedYear}
+            disabled={
+              !selectedYear ||
+              attendanceActive
+            }
             onChange={(e) =>
-              setSelectedSubject(e.target.value)
+              setSelectedSubject(
+                e.target.value
+              )
             }
           >
             <option value="">
@@ -395,9 +531,9 @@ export default function Dashboard() {
             </option>
 
             {(
-              departmentSubjects[selectedDepartment]?.[
-                selectedYear
-              ] || []
+              departmentSubjects[
+                selectedDepartment
+              ]?.[selectedYear] || []
             ).map((subject) => (
               <option
                 key={subject}
@@ -408,7 +544,87 @@ export default function Dashboard() {
             ))}
           </select>
 
-          <button onClick={toggleSession}>
+          {/* THEORY / LAB */}
+          <label>
+            Select Lecture Type
+          </label>
+
+          <select
+            value={sessionType}
+            disabled={attendanceActive}
+            onChange={(e) => {
+              setSessionType(
+                e.target.value
+              );
+
+              // Reset time whenever
+              // Theory/Lab changes
+              setSelectedTimeSlot("");
+            }}
+          >
+            <option value="">
+              Select Theory / Lab
+            </option>
+
+            <option value="Theory">
+              Theory
+            </option>
+
+            <option value="Lab">
+              Lab
+            </option>
+          </select>
+
+          {/* TIME SLOT */}
+          <label>
+            Select Time Slot
+          </label>
+
+          <select
+            value={selectedTimeSlot}
+            disabled={
+              !sessionType ||
+              attendanceActive
+            }
+            onChange={(e) =>
+              setSelectedTimeSlot(
+                e.target.value
+              )
+            }
+          >
+            <option value="">
+              Select Time Slot
+            </option>
+
+            {sessionType === "Theory" &&
+              theoryTimeSlots.map(
+                (slot) => (
+                  <option
+                    key={slot}
+                    value={slot}
+                  >
+                    {slot}
+                  </option>
+                )
+              )}
+
+            {sessionType === "Lab" &&
+              labTimeSlots.map(
+                (slot) => (
+                  <option
+                    key={slot}
+                    value={slot}
+                  >
+                    {slot}
+                  </option>
+                )
+              )}
+          </select>
+
+          {/* START / STOP */}
+          <button
+            onClick={toggleSession}
+          >
             {attendanceActive
               ? "Stop Attendance"
               : "Start Attendance"}
@@ -425,52 +641,67 @@ export default function Dashboard() {
 
           <button
             onClick={() =>
-              navigate("/teacher/attendance")
+              navigate(
+                "/teacher/attendance"
+              )
             }
           >
             View Attendance
           </button>
         </div>
 
+        {/* RIGHT CARD */}
         <div className="card center">
-          <h2>Live Session QR</h2>
 
-          {attendanceActive && sessionInfo && (
-            <div
-              style={{
-                background: "#f8fbff",
-                padding: "12px",
-                borderRadius: "10px",
-                marginBottom: "15px",
-                textAlign: "left"
-              }}
-            >
-              <p>
-                <strong>Subject:</strong>{" "}
-                {sessionInfo.subject}
-              </p>
+          <h2>
+            Live Session QR
+          </h2>
 
-              <p>
-                <strong>Department:</strong>{" "}
-                {sessionInfo.department}
-              </p>
+          {attendanceActive &&
+            sessionInfo && (
+              <div
+                style={{
+                  background:
+                    "#f8fbff",
+                  padding: "12px",
+                  borderRadius:
+                    "10px",
+                  marginBottom:
+                    "15px",
+                  textAlign:
+                    "left"
+                }}
+              >
+                <p>
+                  <strong>
+                    Subject:
+                  </strong>{" "}
+                  {sessionInfo.subject}
+                </p>
 
-              <p>
-                <strong>Year:</strong>{" "}
-                {sessionInfo.year}
-              </p>
+                <p>
+                  <strong>
+                    Department:
+                  </strong>{" "}
+                  {
+                    sessionInfo.department
+                  }
+                </p>
 
-              <p>
-                <strong>Started:</strong>{" "}
-                {sessionInfo.start_time}
-              </p>
-            </div>
-          )}
+                <p>
+                  <strong>
+                    Year:
+                  </strong>{" "}
+                  {sessionInfo.year}
+                </p>
+              </div>
+            )}
 
           <p
             style={{
               fontSize: "12px",
-              wordBreak: "break-all"
+              wordBreak:
+                "break-all"
             }}
           >
             {sessionId}
@@ -478,15 +709,22 @@ export default function Dashboard() {
 
           {attendanceActive ? (
             <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrToken)}&t=${Date.now()}`}
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(
+                qrToken
+              )}&t=${Date.now()}`}
               alt="QR Code"
             />
           ) : (
-            <p style={{ color: "gray" }}>
+            <p
+              style={{
+                color: "gray"
+              }}
+            >
               Session not active
             </p>
           )}
 
+          {/* LIVE ATTENDANCE */}
           <div
             style={{
               marginTop: "20px",
@@ -496,21 +734,27 @@ export default function Dashboard() {
             <div
               style={{
                 display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center"
+                justifyContent:
+                  "space-between",
+                alignItems:
+                  "center"
               }}
             >
-              <h3>Live Attendance</h3>
+              <h3>
+                Live Attendance
+              </h3>
 
               <strong>
-                Present : {liveAttendance.length}
+                Present :{" "}
+                {liveAttendance.length}
               </strong>
             </div>
 
             <table
               style={{
                 width: "100%",
-                borderCollapse: "collapse",
+                borderCollapse:
+                  "collapse",
                 fontSize: "14px"
               }}
             >
@@ -523,26 +767,39 @@ export default function Dashboard() {
               </thead>
 
               <tbody>
-                {liveAttendance.length === 0 ? (
+                {liveAttendance.length ===
+                0 ? (
                   <tr>
                     <td colSpan={3}>
-                      Waiting for students...
+                      Waiting for
+                      students...
                     </td>
                   </tr>
                 ) : (
                   liveAttendance.map(
-                    (student, index) => (
-                      <tr key={index}>
+                    (
+                      student,
+                      index
+                    ) => (
+                      <tr
+                        key={index}
+                      >
                         <td>
-                          {student.prn}
+                          {
+                            student.prn
+                          }
                         </td>
 
                         <td>
-                          {student.student_name}
+                          {
+                            student.student_name
+                          }
                         </td>
 
                         <td>
-                          {student.attendance_time}
+                          {
+                            student.attendance_time
+                          }
                         </td>
                       </tr>
                     )
