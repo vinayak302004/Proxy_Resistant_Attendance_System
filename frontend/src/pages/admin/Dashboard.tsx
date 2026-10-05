@@ -36,6 +36,34 @@ const app =
 
 const auth = getAuth(app);
 
+const isValidIndianMobile = (
+  phone: string
+): boolean => {
+  const cleanedPhone =
+    phone.replace(/\s+/g, "");
+
+  // Must contain exactly 10 digits
+  if (!/^[6-9]\d{9}$/.test(cleanedPhone)) {
+    return false;
+  }
+
+  // Reject repeated digits
+  if (/^(\d)\1{9}$/.test(cleanedPhone)) {
+    return false;
+  }
+
+  // Reject obvious sequential numbers
+  if (
+    cleanedPhone === "0123456789" ||
+    cleanedPhone === "1234567890" ||
+    cleanedPhone === "9876543210"
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 export default function AdminDashboard() {
   const adminName =
     localStorage.getItem("full_name") || "Admin";
@@ -410,7 +438,12 @@ export default function AdminDashboard() {
       );
       return;
     }
-
+    if (!isValidIndianMobile(formData.phone)) {
+      setMessage(
+        "Please enter a valid 10-digit Indian mobile number."
+      );
+      return;
+    }
     if (
       formData.password.length < 6
     ) {
