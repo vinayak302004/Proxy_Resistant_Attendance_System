@@ -1,4 +1,5 @@
 import os
+import zipfile
 from datetime import datetime, date, timedelta
 from io import BytesIO
 from openpyxl import Workbook
@@ -19,6 +20,8 @@ from attendance_session import (
 )
 from database import get_db_connection
 from face_verify import verify_face
+import openpyxl
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -632,6 +635,741 @@ def add_student():
             "message":
                 str(e)
         }), 500
+
+# =========================================================
+# BULK STUDENT REGISTRATION
+# EXCEL + PHOTO ZIP
+# =========================================================
+
+@app.route(
+    "/api/students/bulk-upload",
+    methods=["POST"]
+)
+def bulk_upload_students():
+
+    connection = None
+    cursor = None
+
+    try:
+
+        # -------------------------------------------------
+        # VERIFY FIREBASE TOKEN
+        # -------------------------------------------------
+
+        decoded_token = verify_firebase_token()
+
+        if not decoded_token:
+            return jsonify({
+                "success": False,
+                "message": "Unauthorized."
+            }), 401
+
+        # -------------------------------------------------
+        # CHECK EXCEL FILE
+        # -------------------------------------------------
+
+        if "file" not in request.files:
+            return jsonify({
+                "success": False,
+                "message": "Excel file is required."
+            }), 400
+
+        excel_file = request.files["file"]
+
+        if not excel_file.filename:
+            return jsonify({
+                "success": False,
+                "message": "No Excel file selected."
+            }), 400
+
+        excel_filename = secure_filename(
+            excel_file.filename
+        )
+
+        # Only XLSX
+        if not excel_filename.lower().endswith(".xlsx"):
+            return jsonify({
+                "success": False,
+                "message": "Only .xlsx Excel files are allowed."
+            }), 400
+
+        # -------------------------------------------------
+        # CHECK PHOTO ZIP
+        # -------------------------------------------------
+
+        if "photos_zip" not in request.files:
+            return jsonify({
+                "success": False,
+                "message": "Student photos ZIP file is required."
+            }), 400
+
+        photos_zip = request.files["photos_zip"]
+
+        if not photos_zip.filename:
+            return jsonify({
+                "success": False,
+                "message": "No student photos ZIP file selected."
+            }), 400
+
+        zip_filename = secure_filename(
+            photos_zip.filename
+        )
+
+        if not zip_filename.lower().endswith(".zip"):
+            return jsonify({
+                "success": False,
+                "message": "Only .zip photo files are allowed."
+            }), 400
+
+        # -------------------------------------------------
+        # LOAD EXCEL
+        # -------------------------------------------------
+
+        workbook = openpyxl.load_workbook(
+            excel_file,
+            data_only=True
+        )
+
+        worksheet = workbook.active
+
+        rows = list(
+            worksheet.iter_rows(
+                values_only=True
+            )
+        )
+
+        if not rows:
+            return jsonify({
+                "success": False,
+                "message": "Excel file is empty."
+            }), 400
+
+        # -------------------------------------------------
+        # READ EXCEL HEADERS
+        # -------------------------------------------------
+
+        headers = [
+            str(cell).strip()
+            if cell is not None
+            else ""
+            for cell in rows[0]
+        ]
+
+        required_columns = [
+            "PRN",
+            "Full Name",
+            "Email",
+            "Password",
+            "Phone",
+            "Year",
+            "Branch",
+            "Division"
+        ]
+
+        missing_columns = [
+            column
+            for column in required_columns
+            if column not in headers
+        ]
+
+        if missing_columns:
+            return jsonify({
+                "success": False,
+                "message": "Missing required Excel columns.",
+                "missing_columns": missing_columns
+            }), 400
+
+        column_index = {
+            column: headers.index(column)
+            for column in headers
+        }
+
+        # -------------------------------------------------
+        # OPEN ZIP
+        # -------------------------------------------------
+
+        try:
+
+            zip_data = photos_zip.read()
+
+            zip_file = zipfile.ZipFile(
+                BytesIO(zip_data),
+                "r"
+            )
+
+        except zipfile.BadZipFile:
+
+            return jsonify({
+                "success": False,
+                "message": "Invalid or corrupted ZIP file."
+            }), 400
+
+        # -------------------------------------------------
+        # ALLOWED IMAGE TYPES
+        # -------------------------------------------------
+
+        allowed_extensions = {
+            ".jpg",
+            ".jpeg",
+            ".png",
+            ".webp"
+        }
+
+        # -------------------------------------------------
+        # BUILD PHOTO MAP
+        #
+        # Example:
+        #
+        # 23CSE001.jpg
+        # 23CSE002.png
+        #
+        # becomes:
+        #
+        # {
+        #     "23CSE001": "23CSE001.jpg",
+        #     "23CSE002": "23CSE002.png"
+        # }
+        # -------------------------------------------------
+
+        photo_map = {}
+
+        for zip_name in zip_file.namelist():
+
+            # Ignore directories
+            if zip_name.endswith("/"):
+                continue
+
+            # Prevent unsafe ZIP paths
+            normalized_name = zip_name.replace("\\", "/")
+
+            if ".." in normalized_name.split("/"):
+                continue
+
+            filename = os.path.basename(
+                normalized_name
+            )
+
+            extension = os.path.splitext(
+                filename
+            )[1].lower()
+
+            if extension not in allowed_extensions:
+                continue
+
+            photo_prn = os.path.splitext(
+                filename
+            )[0].strip()
+
+            if not photo_prn:
+                continue
+
+            # Only one photo per PRN
+            if photo_prn in photo_map:
+                return jsonify({
+                    "success": False,
+                    "message":
+                        f"Multiple photos found for PRN {photo_prn}. "
+                        f"Only one photo per PRN is allowed."
+                }), 400
+
+            photo_map[photo_prn] = zip_name
+
+        # -------------------------------------------------
+        # DATABASE
+        # -------------------------------------------------
+
+        connection = get_db_connection()
+
+        cursor = connection.cursor(
+            dictionary=True
+        )
+
+        successful = 0
+        failed = 0
+        errors = []
+
+        dataset_path = os.path.join(
+            os.path.dirname(__file__),
+            "dataset"
+        )
+
+        os.makedirs(
+            dataset_path,
+            exist_ok=True
+        )
+
+        # -------------------------------------------------
+        # PROCESS EACH EXCEL ROW
+        # -------------------------------------------------
+
+        for excel_row_number, row in enumerate(
+            rows[1:],
+            start=2
+        ):
+
+            firebase_user = None
+            saved_image_path = None
+            student_folder = None
+
+            try:
+
+                # -----------------------------------------
+                # HELPER
+                # -----------------------------------------
+
+                def get_value(column):
+
+                    index = column_index.get(
+                        column
+                    )
+
+                    if index is None:
+                        return ""
+
+                    if index >= len(row):
+                        return ""
+
+                    value = row[index]
+
+                    if value is None:
+                        return ""
+
+                    return str(value).strip()
+
+                # -----------------------------------------
+                # READ DATA
+                # -----------------------------------------
+
+                prn = get_value("PRN")
+
+                full_name = get_value(
+                    "Full Name"
+                )
+
+                email = get_value(
+                    "Email"
+                ).lower()
+
+                password = get_value(
+                    "Password"
+                )
+
+                phone = get_value(
+                    "Phone"
+                )
+
+                year = get_value(
+                    "Year"
+                )
+
+                branch = get_value(
+                    "Branch"
+                )
+
+                division = get_value(
+                    "Division"
+                )
+
+                gender = get_value(
+                    "Gender"
+                )
+
+                # -----------------------------------------
+                # VALIDATE REQUIRED DATA
+                # -----------------------------------------
+
+                if not all([
+                    prn,
+                    full_name,
+                    email,
+                    password,
+                    phone,
+                    year,
+                    branch,
+                    division
+                ]):
+
+                    raise Exception(
+                        "Required Excel field is missing."
+                    )
+
+                # -----------------------------------------
+                # VALIDATE PASSWORD
+                # -----------------------------------------
+
+                if len(password) < 6:
+
+                    raise Exception(
+                        "Password must contain at least 6 characters."
+                    )
+
+                # -----------------------------------------
+                # VALIDATE PRN
+                # -----------------------------------------
+
+                if (
+                    "/" in prn
+                    or "\\" in prn
+                    or prn in [".", ".."]
+                ):
+
+                    raise Exception(
+                        "Invalid PRN format."
+                    )
+
+                # -----------------------------------------
+                # FIND PHOTO
+                # -----------------------------------------
+
+                photo_zip_path = photo_map.get(
+                    prn
+                )
+
+                if not photo_zip_path:
+
+                    raise Exception(
+                        f"Photo not found in ZIP for PRN {prn}."
+                    )
+
+                # -----------------------------------------
+                # CHECK DUPLICATE PRN
+                # -----------------------------------------
+
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM students
+                    WHERE prn = %s
+                    LIMIT 1
+                    """,
+                    (prn,)
+                )
+
+                existing_prn = cursor.fetchone()
+
+                if existing_prn:
+
+                    raise Exception(
+                        f"PRN {prn} already exists."
+                    )
+
+                # -----------------------------------------
+                # CHECK DUPLICATE EMAIL
+                # -----------------------------------------
+
+                cursor.execute(
+                    """
+                    SELECT id
+                    FROM students
+                    WHERE LOWER(email) = LOWER(%s)
+                    LIMIT 1
+                    """,
+                    (email,)
+                )
+
+                existing_email = cursor.fetchone()
+
+                if existing_email:
+
+                    raise Exception(
+                        f"Email {email} already exists."
+                    )
+
+                # -----------------------------------------
+                # CHECK FIREBASE EMAIL
+                # -----------------------------------------
+
+                try:
+
+                    auth.get_user_by_email(
+                        email
+                    )
+
+                    raise Exception(
+                        f"Firebase account already exists for {email}."
+                    )
+
+                except auth.UserNotFoundError:
+
+                    pass
+
+                # -----------------------------------------
+                # CREATE FIREBASE ACCOUNT
+                # -----------------------------------------
+
+                firebase_user = auth.create_user(
+                    email=email,
+                    password=password,
+                    display_name=full_name
+                )
+
+                # -----------------------------------------
+                # CREATE STUDENT DATASET FOLDER
+                # -----------------------------------------
+
+                student_folder = os.path.join(
+                    dataset_path,
+                    prn
+                )
+
+                os.makedirs(
+                    student_folder,
+                    exist_ok=True
+                )
+
+                # -----------------------------------------
+                # READ PHOTO FROM ZIP
+                # -----------------------------------------
+
+                original_photo_name = os.path.basename(
+                    photo_zip_path
+                )
+
+                extension = os.path.splitext(
+                    original_photo_name
+                )[1].lower()
+
+                if extension not in allowed_extensions:
+
+                    raise Exception(
+                        "Unsupported photo format."
+                    )
+
+                photo_bytes = zip_file.read(
+                    photo_zip_path
+                )
+
+                if not photo_bytes:
+
+                    raise Exception(
+                        f"Photo file for PRN {prn} is empty."
+                    )
+
+                # -----------------------------------------
+                # SAVE AS image_1.<extension>
+                # -----------------------------------------
+
+                image_filename = (
+                    "image_1" + extension
+                )
+
+                saved_image_path = os.path.join(
+                    student_folder,
+                    image_filename
+                )
+
+                with open(
+                    saved_image_path,
+                    "wb"
+                ) as image_file:
+
+                    image_file.write(
+                        photo_bytes
+                    )
+
+                print(
+                    "Bulk student photo saved:",
+                    saved_image_path
+                )
+
+                # -----------------------------------------
+                # INSERT MYSQL
+                # -----------------------------------------
+
+                cursor.execute(
+                    """
+                    INSERT INTO students
+                    (
+                        prn,
+                        full_name,
+                        email,
+                        phone,
+                        year,
+                        branch,
+                        division,
+                        gender,
+                        face_folder
+                    )
+                    VALUES
+                    (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    """,
+                    (
+                        prn,
+                        full_name,
+                        email,
+                        phone,
+                        year,
+                        branch,
+                        division,
+                        gender,
+                        prn
+                    )
+                )
+
+                connection.commit()
+
+                successful += 1
+
+            # ---------------------------------------------
+            # ROW ERROR / ROLLBACK
+            # ---------------------------------------------
+
+            except Exception as row_error:
+
+                connection.rollback()
+
+                # Delete Firebase account
+                if firebase_user:
+
+                    try:
+
+                        auth.delete_user(
+                            firebase_user.uid
+                        )
+
+                    except Exception as delete_error:
+
+                        print(
+                            "Firebase rollback error:",
+                            delete_error
+                        )
+
+                # Delete saved photo
+                if saved_image_path:
+
+                    try:
+
+                        if os.path.exists(
+                            saved_image_path
+                        ):
+
+                            os.remove(
+                                saved_image_path
+                            )
+
+                    except Exception as photo_error:
+
+                        print(
+                            "Photo rollback error:",
+                            photo_error
+                        )
+
+                # Delete empty PRN folder
+                if student_folder:
+
+                    try:
+
+                        if (
+                            os.path.exists(student_folder)
+                            and
+                            not os.listdir(student_folder)
+                        ):
+
+                            os.rmdir(
+                                student_folder
+                            )
+
+                    except Exception:
+                        pass
+
+                failed += 1
+
+                errors.append({
+                    "row":
+                        excel_row_number,
+
+                    "prn":
+                        prn
+                        if "prn" in locals()
+                        else "",
+
+                    "message":
+                        str(row_error)
+                })
+
+        # -------------------------------------------------
+        # CLOSE DATABASE
+        # -------------------------------------------------
+
+        cursor.close()
+        connection.close()
+
+        cursor = None
+        connection = None
+
+        zip_file.close()
+
+        total = len(rows) - 1
+
+        # -------------------------------------------------
+        # RESPONSE
+        # -------------------------------------------------
+
+        return jsonify({
+
+            "success": True,
+
+            "message":
+                f"Bulk registration completed. "
+                f"{successful} students registered, "
+                f"{failed} failed.",
+
+            "total":
+                total,
+
+            "successful":
+                successful,
+
+            "failed":
+                failed,
+
+            "errors":
+                errors
+
+        }), 200
+
+    # =====================================================
+    # COMPLETE BULK UPLOAD ERROR
+    # =====================================================
+
+    except Exception as error:
+
+        print(
+            "BULK STUDENT UPLOAD ERROR:",
+            error
+        )
+
+        try:
+
+            if cursor:
+                cursor.close()
+
+            if connection:
+                connection.close()
+
+        except Exception:
+            pass
+
+        return jsonify({
+
+            "success": False,
+
+            "message":
+                f"Bulk upload failed: {str(error)}"
+
+        }), 500
+
+    
 @app.route(
     "/student/profile/<prn>",
     methods=["GET"]

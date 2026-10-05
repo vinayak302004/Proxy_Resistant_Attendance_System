@@ -78,6 +78,21 @@ export default function AdminDashboard() {
   const [studentsLoading, setStudentsLoading] =
     useState(false);
 
+  const [excelFile, setExcelFile] =
+    useState<File | null>(null);
+
+  const [photosZip, setPhotosZip] =
+    useState<File | null>(null);
+
+  const [bulkLoading, setBulkLoading] =
+    useState(false);
+
+  const [bulkMessage, setBulkMessage] =
+    useState("");
+
+  const [bulkResult, setBulkResult] =
+    useState<any>(null);
+
   const fetchStudents = async (
     year = selectedYear,
     branch = selectedDepartment
@@ -194,6 +209,183 @@ export default function AdminDashboard() {
       [e.target.name]:
         e.target.value
     });
+  };
+
+  const handleExcelChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file =
+      e.target.files?.[0] || null;
+
+    setExcelFile(file);
+    setBulkMessage("");
+    setBulkResult(null);
+  };
+
+  const handlePhotosZipChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file =
+      e.target.files?.[0] || null;
+
+    setPhotosZip(file);
+    setBulkMessage("");
+    setBulkResult(null);
+  };
+
+  const handleBulkStudentUpload = async () => {
+    setBulkMessage("");
+    setBulkResult(null);
+
+    if (!excelFile) {
+      setBulkMessage(
+        "Please select an Excel file."
+      );
+      return;
+    }
+
+    if (!photosZip) {
+      setBulkMessage(
+        "Please select the student photos ZIP file."
+      );
+      return;
+    }
+
+    // Validate Excel file
+    const allowedExtensions = [
+      ".xlsx",
+      ".xls"
+    ];
+
+    const excelFileName =
+      excelFile.name.toLowerCase();
+
+    if (
+      !allowedExtensions.some(
+        (extension) =>
+          excelFileName.endsWith(extension)
+      )
+    ) {
+      setBulkMessage(
+        "Please upload a valid Excel file (.xlsx or .xls)."
+      );
+      return;
+    }
+
+    // Validate ZIP file
+    const zipFileName =
+      photosZip.name.toLowerCase();
+
+    if (!zipFileName.endsWith(".zip")) {
+      setBulkMessage(
+        "Please upload a valid ZIP file containing student photos."
+      );
+      return;
+    }
+
+    try {
+      setBulkLoading(true);
+
+      const currentUser =
+        auth.currentUser;
+
+      if (!currentUser) {
+        throw new Error(
+          "Admin is not logged in."
+        );
+      }
+
+      const token =
+        await currentUser.getIdToken(true);
+
+      const formData =
+        new FormData();
+
+      // Excel file
+      formData.append(
+        "file",
+        excelFile
+      );
+
+      // Student photos ZIP
+      formData.append(
+        "photos_zip",
+        photosZip
+      );
+
+      const response =
+        await fetch(
+          `${API_URL}/api/students/bulk-upload`,
+          {
+            method: "POST",
+            headers: {
+              Authorization:
+                `Bearer ${token}`
+            },
+            body: formData
+          }
+        );
+
+      const data =
+        await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+          "Bulk student registration failed."
+        );
+      }
+
+      setBulkResult(data);
+
+      setBulkMessage(
+        data.message ||
+        "Students registered successfully."
+      );
+
+      // Clear Excel file
+      setExcelFile(null);
+
+      const fileInput =
+        document.getElementById(
+          "student-excel"
+        ) as HTMLInputElement;
+
+      if (fileInput) {
+        fileInput.value = "";
+      }
+
+      // Clear ZIP file
+      setPhotosZip(null);
+
+      const zipInput =
+        document.getElementById(
+          "student-photos-zip"
+        ) as HTMLInputElement;
+
+      if (zipInput) {
+        zipInput.value = "";
+      }
+
+      // Refresh student list
+      await fetchStudents(
+        selectedYear,
+        selectedDepartment
+      );
+
+    } catch (error: any) {
+      console.error(
+        "Bulk upload error:",
+        error
+      );
+
+      setBulkMessage(
+        error?.message ||
+        "Unable to upload Excel and photos ZIP."
+      );
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleAddStudent = async (
@@ -709,6 +901,181 @@ export default function AdminDashboard() {
               }
             </button>
           </form>
+
+          <div className="bulk-upload-section">
+
+            <div className="admin-title">
+              Bulk Student Registration
+            </div>
+
+            <p className="bulk-description">
+              Upload the Excel file and a ZIP file containing
+              student photos. Each photo must be named using
+              the student's PRN.
+            </p>
+
+            <div className="excel-format-box">
+              <strong>
+                Excel columns required:
+              </strong>
+
+              <div className="excel-columns">
+                PRN, Full Name, Email, Password,
+                Phone, Year, Branch, Division, Gender
+              </div>
+
+              <strong>
+                Photo ZIP format:
+              </strong>
+
+              <div className="excel-columns">
+                Photos must be named using the student's PRN.
+                Example: 2023001.jpg
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="download-template-btn"
+              onClick={() => {
+                window.open(
+                  "/student_bulk_upload_template.xlsx",
+                  "_blank"
+                );
+              }}
+            >
+              Download Excel Template
+            </button>
+
+            <div className="admin-field">
+              <label>
+                Upload Excel File
+                <span>*</span>
+              </label>
+
+              <input
+                id="student-excel"
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={
+                  handleExcelChange
+                }
+                disabled={bulkLoading}
+              />
+
+              {excelFile && (
+                <p className="selected-photo">
+                  Selected: {excelFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="admin-field">
+              <label>
+                Upload Student Photos ZIP
+                <span>*</span>
+              </label>
+
+              <input
+                id="student-photos-zip"
+                type="file"
+                accept=".zip"
+                onChange={
+                  handlePhotosZipChange
+                }
+                disabled={bulkLoading}
+              />
+
+              {photosZip && (
+                <p className="selected-photo">
+                  Selected: {photosZip.name}
+                </p>
+              )}
+            </div>
+
+            {bulkMessage && (
+              <div
+                className={`admin-message ${
+                  bulkResult
+                    ? "bulk-success"
+                    : "bulk-error"
+                }`}
+              >
+                {bulkMessage}
+              </div>
+            )}
+
+            {bulkResult && (
+              <div className="bulk-result">
+
+                <div>
+                  <strong>
+                    Total Rows:
+                  </strong>{" "}
+                  {bulkResult.total || 0}
+                </div>
+
+                <div>
+                  <strong>
+                    Registered:
+                  </strong>{" "}
+                  {bulkResult.successful || 0}
+                </div>
+
+                <div>
+                  <strong>
+                    Failed:
+                  </strong>{" "}
+                  {bulkResult.failed || 0}
+                </div>
+
+              </div>
+            )}
+
+            {bulkResult?.errors?.length > 0 && (
+              <div className="bulk-errors">
+
+                <h4>
+                  Failed Students
+                </h4>
+
+                {bulkResult.errors.map(
+                  (
+                    error: any,
+                    index: number
+                  ) => (
+                    <div
+                      key={index}
+                      className="bulk-error-row"
+                    >
+                      Row {error.row}:{" "}
+                      {error.prn || "Unknown PRN"} —{" "}
+                      {error.message}
+                    </div>
+                  )
+                )}
+
+              </div>
+            )}
+
+            <button
+              type="button"
+              className="admin-add-btn bulk-upload-btn"
+              onClick={
+                handleBulkStudentUpload
+              }
+              disabled={
+                bulkLoading ||
+                !excelFile ||
+                !photosZip
+              }
+            >
+              {bulkLoading
+                ? "Registering Students..."
+                : "Upload Excel & Register Students"}
+            </button>
+
+          </div>
 
           <div className="student-list-section">
             <div className="admin-title">
