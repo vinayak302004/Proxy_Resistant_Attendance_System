@@ -665,15 +665,6 @@ const applyStudentLeave = async () => {
             </h2>
             <span>Absent</span>
         </div>
-        <div className="summary-card leave-summary">
-          <h2>
-            {students.filter(
-              (s) => s.status === "Leave"
-            ).length}
-          </h2>
-
-          <span>Leave</span>
-        </div>
 
     </div>
       <div className="table-card">
