@@ -31,6 +31,8 @@ export default function TeacherAttendance() {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
   const [selectedReportSubject, setSelectedReportSubject] =
   useState<string>("ALL");
+  const [selectedDefaulterThreshold, setSelectedDefaulterThreshold] =
+  useState<number>(75);
   const [downloading, setDownloading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -159,6 +161,16 @@ export default function TeacherAttendance() {
     return;
   }
 
+  if (
+    type === "defaulters" &&
+    (!selectedDefaulterThreshold ||
+      selectedDefaulterThreshold <= 0 ||
+      selectedDefaulterThreshold > 100)
+  ) {
+    alert("Please select a valid defaulter threshold.");
+    return;
+  }
+
   setDownloading(true);
 
   try {
@@ -169,15 +181,16 @@ export default function TeacherAttendance() {
 
     const params = new URLSearchParams();
 
-    params.append(
-      "month",
-      selectedMonth
-    );
+    params.append("month", selectedMonth);
+    params.append("subject", selectedReportSubject);
 
-    params.append(
-      "subject",
-      selectedReportSubject
-    );
+    // Send threshold only for defaulter report
+    if (type === "defaulters") {
+      params.append(
+        "threshold",
+        selectedDefaulterThreshold.toString()
+      );
+    }
 
     const response = await fetch(
       `${API_URL}${endpoint}?${params.toString()}`
@@ -201,9 +214,7 @@ export default function TeacherAttendance() {
 
     const blob = await response.blob();
 
-    const url = window.URL.createObjectURL(
-      blob
-    );
+    const url = window.URL.createObjectURL(blob);
 
     const link = document.createElement("a");
 
@@ -212,15 +223,12 @@ export default function TeacherAttendance() {
     const subjectName =
       selectedReportSubject === "ALL"
         ? "All_Subjects"
-        : selectedReportSubject.replace(
-            /\s+/g,
-            "_"
-          );
+        : selectedReportSubject.replace(/\s+/g, "_");
 
     link.download =
       type === "attendance"
         ? `Monthly_Attendance_${subjectName}_${selectedMonth}.xlsx`
-        : `Defaulter_Attendance_${subjectName}_${selectedMonth}.xlsx`;
+        : `Defaulter_Attendance_Below_${selectedDefaulterThreshold}Percent_${subjectName}_${selectedMonth}.xlsx`;
 
     document.body.appendChild(link);
 
@@ -231,11 +239,7 @@ export default function TeacherAttendance() {
     window.URL.revokeObjectURL(url);
 
   } catch (error) {
-
-    console.error(
-      "Excel download error:",
-      error
-    );
+    console.error("Excel download error:", error);
 
     alert(
       error instanceof Error
@@ -244,7 +248,6 @@ export default function TeacherAttendance() {
     );
 
   } finally {
-
     setDownloading(false);
   }
 };
@@ -461,6 +464,34 @@ export default function TeacherAttendance() {
 
             </div>
 
+            {/* DEFAULTER THRESHOLD */}
+
+            <div className="month-selector">
+
+              <label htmlFor="defaulter-threshold-select">
+                Defaulter Threshold
+              </label>
+
+              <select
+                id="defaulter-threshold-select"
+                value={selectedDefaulterThreshold}
+                onChange={(e) =>
+                  setSelectedDefaulterThreshold(
+                    Number(e.target.value)
+                  )
+                }
+              >
+                <option value={90}>Below 90%</option>
+                <option value={85}>Below 85%</option>
+                <option value={80}>Below 80%</option>
+                <option value={75}>Below 75%</option>
+                <option value={70}>Below 70%</option>
+                <option value={65}>Below 65%</option>
+                <option value={60}>Below 60%</option>
+                <option value={50}>Below 50%</option>
+              </select>
+
+            </div>
 
             {/* DOWNLOAD BUTTONS */}
 
