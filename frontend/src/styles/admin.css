@@ -426,3 +426,91 @@
     line-height: 1.3;
   }
 }
+
+/* =========================================
+   BULK EXCEL UPLOAD
+========================================= */
+
+.bulk-upload-section {
+  margin-top: 35px;
+  padding-top: 30px;
+  border-top: 2px solid #eeeeee;
+}
+
+.bulk-description {
+  margin: 8px 0 18px;
+  color: #555555;
+  font-size: 14px;
+}
+
+.excel-format-box {
+  background: #fff8d6;
+  border: 1px solid #ffca08;
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 20px;
+}
+
+.excel-columns {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #333333;
+  line-height: 1.6;
+}
+
+.bulk-upload-btn {
+  margin-top: 10px;
+}
+
+.bulk-success {
+  background: #e8f7e8 !important;
+  border: 1px solid #58a958 !important;
+  color: #206020 !important;
+}
+
+.bulk-error {
+  background: #fff0f0 !important;
+  border: 1px solid #d9534f !important;
+  color: #9b2226 !important;
+}
+
+.bulk-result {
+  display: flex;
+  gap: 25px;
+  flex-wrap: wrap;
+
+  margin-top: 15px;
+  padding: 14px;
+
+  background: #f8f8f8;
+  border-radius: 8px;
+
+  font-size: 14px;
+}
+
+.bulk-errors {
+  margin-top: 15px;
+
+  background: #fff5f5;
+  border: 1px solid #e0a0a0;
+
+  border-radius: 8px;
+
+  padding: 15px;
+}
+
+.bulk-errors h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+
+.bulk-error-row {
+  padding: 7px 0;
+  border-bottom: 1px solid #eeeeee;
+  font-size: 13px;
+  color: #8b1e1e;
+}
+
+.bulk-error-row:last-child {
+  border-bottom: none;
+}
