@@ -3154,6 +3154,25 @@ def monthly_attendance_excel(teacher_id):
             "ALL"
         ).strip()
 
+        threshold = request.args.get(
+            "threshold",
+            "75"
+        ).strip()
+
+        try:
+            threshold = float(threshold)
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "message": "Threshold must be a number between 0 and 100."
+            }), 400
+
+        if threshold < 0 or threshold > 100:
+            return jsonify({
+                "success": False,
+                "message": "Threshold must be between 0 and 100."
+            }), 400
+
         if not month:
 
             return jsonify({
@@ -3165,7 +3184,8 @@ def monthly_attendance_excel(teacher_id):
         teacher, report = get_monthly_attendance_data(
             teacher_id,
             month,
-            subject
+            subject,
+            threshold
         )
 
         workbook = Workbook()
@@ -3462,6 +3482,25 @@ def monthly_defaulters_excel(teacher_id):
             "ALL"
         ).strip()
 
+        threshold = request.args.get(
+            "threshold",
+            "75"
+        ).strip()
+
+        try:
+            threshold = float(threshold)
+        except ValueError:
+            return jsonify({
+                "success": False,
+                "message": "Threshold must be a number between 0 and 100."
+            }), 400
+
+        if threshold < 0 or threshold > 100:
+            return jsonify({
+                "success": False,
+                "message": "Threshold must be between 0 and 100."
+            }), 400
+
         if not month:
 
             return jsonify({
@@ -3473,7 +3512,8 @@ def monthly_defaulters_excel(teacher_id):
         teacher, report = get_monthly_attendance_data(
             teacher_id,
             month,
-            subject
+            subject,
+            threshold
         )
 
         # -------------------------------------------------
@@ -3483,7 +3523,7 @@ def monthly_defaulters_excel(teacher_id):
         defaulters = [
             student
             for student in report
-            if student["percentage"] < 75
+            if student["percentage"] < threshold
         ]
 
         workbook = Workbook()
@@ -3535,7 +3575,7 @@ def monthly_defaulters_excel(teacher_id):
 
         worksheet["A2"] = (
             f"Teacher: {teacher['full_name']} | "
-            f"Defaulter Threshold: Below 75%"
+            f"Defaulter Threshold: Below {threshold:g}%"
         )
 
         worksheet["A2"].font = Font(
@@ -3763,7 +3803,8 @@ def monthly_defaulters_excel(teacher_id):
 def get_monthly_attendance_data(
     teacher_id,
     month,
-    subject="ALL"
+    subject="ALL",
+    threshold=75
 ):
 
     conn = None
@@ -4013,7 +4054,7 @@ def get_monthly_attendance_data(
 
             status = (
                 "Defaulter"
-                if percentage < 75
+                if percentage < threshold
                 else "Regular"
             )
 
