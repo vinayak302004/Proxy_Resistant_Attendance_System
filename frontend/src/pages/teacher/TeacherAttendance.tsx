@@ -29,6 +29,8 @@ export default function TeacherAttendance() {
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedSession, setSelectedSession] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [selectedReportSubject, setSelectedReportSubject] =
+  useState<string>("ALL");
   const [downloading, setDownloading] = useState<boolean>(false);
 
   useEffect(() => {
@@ -138,63 +140,114 @@ export default function TeacherAttendance() {
   }
 };
   const downloadExcel = async (
-    type: "attendance" | "defaulters"
-  ) => {
-    const teacherId = localStorage.getItem("teacher_id");
-    if (!teacherId) {
-      alert("Teacher ID not found.");
-      return;
-    }
-    if (!selectedMonth) {
-      alert("Please select a month.");
-      return;
-    }
-    setDownloading(true);
-    try {
-      const endpoint =
-        type === "attendance"
-          ? `/teacher/monthly-attendance/${teacherId}/excel`
-          : `/teacher/monthly-defaulters/${teacherId}/excel`;
-      const response = await fetch(
-        `${API_URL}${endpoint}?month=${selectedMonth}`
-      );
-      if (!response.ok) {
-        let message = "Failed to download Excel.";
-        try {
-          const data = await response.json();
-          if (data.message) {
-            message = data.message;
-          }
-        } catch {
+  type: "attendance" | "defaulters"
+) => {
+  const teacherId = localStorage.getItem("teacher_id");
+
+  if (!teacherId) {
+    alert("Teacher ID not found.");
+    return;
+  }
+
+  if (!selectedMonth) {
+    alert("Please select a month.");
+    return;
+  }
+
+  if (!selectedReportSubject) {
+    alert("Please select a subject.");
+    return;
+  }
+
+  setDownloading(true);
+
+  try {
+    const endpoint =
+      type === "attendance"
+        ? `/teacher/monthly-attendance/${teacherId}/excel`
+        : `/teacher/monthly-defaulters/${teacherId}/excel`;
+
+    const params = new URLSearchParams();
+
+    params.append(
+      "month",
+      selectedMonth
+    );
+
+    params.append(
+      "subject",
+      selectedReportSubject
+    );
+
+    const response = await fetch(
+      `${API_URL}${endpoint}?${params.toString()}`
+    );
+
+    if (!response.ok) {
+      let message = "Failed to download Excel.";
+
+      try {
+        const data = await response.json();
+
+        if (data.message) {
+          message = data.message;
         }
-        throw new Error(message);
+      } catch {
+        // Ignore JSON parsing error
       }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download =
-        type === "attendance"
-          ? `Monthly_Attendance_${selectedMonth}.xlsx`
-          : `Defaulter_Attendance_${selectedMonth}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error(
-        "Excel download error:",
-        error
-      );
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to download Excel."
-      );
-    } finally {
-      setDownloading(false);
+
+      throw new Error(message);
     }
-  };
+
+    const blob = await response.blob();
+
+    const url = window.URL.createObjectURL(
+      blob
+    );
+
+    const link = document.createElement("a");
+
+    link.href = url;
+
+    const subjectName =
+      selectedReportSubject === "ALL"
+        ? "All_Subjects"
+        : selectedReportSubject.replace(
+            /\s+/g,
+            "_"
+          );
+
+    link.download =
+      type === "attendance"
+        ? `Monthly_Attendance_${subjectName}_${selectedMonth}.xlsx`
+        : `Defaulter_Attendance_${subjectName}_${selectedMonth}.xlsx`;
+
+    document.body.appendChild(link);
+
+    link.click();
+
+    link.remove();
+
+    window.URL.revokeObjectURL(url);
+
+  } catch (error) {
+
+    console.error(
+      "Excel download error:",
+      error
+    );
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Failed to download Excel."
+    );
+
+  } finally {
+
+    setDownloading(false);
+  }
+};
   const subjects = useMemo(() => {
     return [...new Set(sessions.map((s) => s.subject))];
   }, [sessions]);
@@ -312,35 +365,87 @@ export default function TeacherAttendance() {
             </div>
           </div>
           <div className="monthly-report-controls">
+
+            {/* REPORT SUBJECT */}
+
             <div className="month-selector">
+
+              <label htmlFor="report-subject-select">
+                Select Subject
+              </label>
+
+              <select
+                id="report-subject-select"
+                value={selectedReportSubject}
+                onChange={(e) =>
+                  setSelectedReportSubject(
+                    e.target.value
+                  )
+                }
+                disabled={subjects.length === 0}
+              >
+
+                <option value="ALL">
+                  All Subjects
+                </option>
+
+                {subjects.map((subject) => (
+                  <option
+                    key={subject}
+                    value={subject}
+                  >
+                    {subject}
+                  </option>
+                ))}
+
+              </select>
+
+            </div>
+
+
+            {/* REPORT MONTH */}
+
+            <div className="month-selector">
+
               <label htmlFor="month-select">
                 Select Month
               </label>
+
               <select
                 id="month-select"
                 value={selectedMonth}
                 onChange={(e) =>
-                  setSelectedMonth(e.target.value)
+                  setSelectedMonth(
+                    e.target.value
+                  )
                 }
                 disabled={months.length === 0}
               >
+
                 <option value="">
                   Select Month
                 </option>
+
                 {months.map((month) => {
-                  const [year, monthNumber] =
-                    month.split("-");
-                  const monthName = new Date(
-                    Number(year),
-                    Number(monthNumber) - 1,
-                    1
-                  ).toLocaleString(
-                    "en-US",
-                    {
-                      month: "long",
-                      year: "numeric"
-                    }
-                  );
+
+                  const [
+                    year,
+                    monthNumber
+                  ] = month.split("-");
+
+                  const monthName =
+                    new Date(
+                      Number(year),
+                      Number(monthNumber) - 1,
+                      1
+                    ).toLocaleString(
+                      "en-US",
+                      {
+                        month: "long",
+                        year: "numeric"
+                      }
+                    );
+
                   return (
                     <option
                       key={month}
@@ -349,10 +454,18 @@ export default function TeacherAttendance() {
                       {monthName}
                     </option>
                   );
+
                 })}
+
               </select>
+
             </div>
+
+
+            {/* DOWNLOAD BUTTONS */}
+
             <div className="report-buttons">
+
               <button
                 className="excel-btn"
                 onClick={() =>
@@ -360,13 +473,18 @@ export default function TeacherAttendance() {
                 }
                 disabled={
                   !selectedMonth ||
+                  !selectedReportSubject ||
                   downloading
                 }
               >
+
                 {downloading
                   ? "Generating..."
                   : "📊 Download Monthly Attendance"}
+
               </button>
+
+
               <button
                 className="defaulter-btn"
                 onClick={() =>
@@ -374,14 +492,19 @@ export default function TeacherAttendance() {
                 }
                 disabled={
                   !selectedMonth ||
+                  !selectedReportSubject ||
                   downloading
                 }
               >
+
                 {downloading
                   ? "Generating..."
                   : "⚠ Download Defaulter List"}
+
               </button>
+
             </div>
+
           </div>
         </div>
       {currentLecture && (
