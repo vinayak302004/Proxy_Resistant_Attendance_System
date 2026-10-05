@@ -2625,6 +2625,401 @@ def teacher_mark_present():
                 conn.close()
         except Exception:
             pass
+        
+@app.route(
+    "/teacher/attendance/apply-leave",
+    methods=["POST"]
+)
+def apply_student_leave():
+
+    conn = None
+    cursor = None
+
+    try:
+
+        data = request.get_json()
+
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No leave data received."
+            }), 400
+
+        teacher_id = str(
+            data.get("teacher_id", "")
+        ).strip()
+
+        session_id = str(
+            data.get("session_id", "")
+        ).strip()
+
+        prn = str(
+            data.get("prn", "")
+        ).strip()
+
+        leave_type = str(
+            data.get("leave_type", "")
+        ).strip()
+
+        leave_comment = str(
+            data.get("leave_comment", "")
+        ).strip()
+
+        # -----------------------------------------
+        # VALIDATION
+        # -----------------------------------------
+
+        if not teacher_id:
+            return jsonify({
+                "success": False,
+                "message": "Teacher ID is required."
+            }), 400
+
+        if not session_id:
+            return jsonify({
+                "success": False,
+                "message": "Session ID is required."
+            }), 400
+
+        if not prn:
+            return jsonify({
+                "success": False,
+                "message": "Student PRN is required."
+            }), 400
+
+        if not leave_type:
+            return jsonify({
+                "success": False,
+                "message": "Leave type is required."
+            }), 400
+
+        if not leave_comment:
+            return jsonify({
+                "success": False,
+                "message":
+                    "Faculty verification comment is required."
+            }), 400
+
+        print("============================================")
+        print("FACULTY STUDENT LEAVE REQUEST")
+        print("Teacher ID:", teacher_id)
+        print("Session ID:", session_id)
+        print("Student PRN:", prn)
+        print("Leave Type:", leave_type)
+        print("============================================")
+
+        # -----------------------------------------
+        # DATABASE CONNECTION
+        # -----------------------------------------
+
+        conn = get_db_connection()
+
+        cursor = conn.cursor(
+            dictionary=True
+        )
+
+        # -----------------------------------------
+        # VERIFY TEACHER
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                teacher_id,
+                full_name,
+                email
+            FROM teachers
+            WHERE teacher_id = %s
+            LIMIT 1
+            """,
+            (teacher_id,)
+        )
+
+        teacher = cursor.fetchone()
+
+        if not teacher:
+
+            return jsonify({
+                "success": False,
+                "message": "Teacher not found."
+            }), 404
+
+        # -----------------------------------------
+        # VERIFY SESSION
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                session_id,
+                teacher_id,
+                subject,
+                department,
+                year,
+                lecture_date,
+                status
+            FROM attendance_sessions
+            WHERE session_id = %s
+            LIMIT 1
+            """,
+            (session_id,)
+        )
+
+        session = cursor.fetchone()
+
+        if not session:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Attendance session not found."
+            }), 404
+
+        # -----------------------------------------
+        # VERIFY TEACHER OWNS SESSION
+        # -----------------------------------------
+
+        if str(
+            session["teacher_id"]
+        ).strip() != teacher_id:
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "You are not authorized to modify this attendance session."
+            }), 403
+
+        # -----------------------------------------
+        # VERIFY STUDENT
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                prn,
+                full_name,
+                branch,
+                year
+            FROM students
+            WHERE prn = %s
+            LIMIT 1
+            """,
+            (prn,)
+        )
+
+        student = cursor.fetchone()
+
+        if not student:
+
+            return jsonify({
+                "success": False,
+                "message": "Student not found."
+            }), 404
+
+        # -----------------------------------------
+        # VERIFY STUDENT BELONGS TO CLASS
+        # -----------------------------------------
+
+        if (
+            str(student["branch"]).strip()
+            != str(session["department"]).strip()
+        ):
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student does not belong to this department."
+            }), 403
+
+        if (
+            str(student["year"]).strip()
+            != str(session["year"]).strip()
+        ):
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Student does not belong to this class."
+            }), 403
+
+        # -----------------------------------------
+        # FIND EXISTING ATTENDANCE RECORD
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            SELECT
+                attendance_id,
+                status,
+                attendance_time
+            FROM attendance
+            WHERE session_id = %s
+              AND TRIM(prn) = %s
+            LIMIT 1
+            """,
+            (
+                session_id,
+                prn
+            )
+        )
+
+        attendance = cursor.fetchone()
+
+        # -----------------------------------------
+        # IMPORTANT:
+        # ABSENT STUDENTS CURRENTLY DO NOT HAVE
+        # ATTENDANCE ROWS IN YOUR DATABASE.
+        #
+        # Therefore, if no row exists, CREATE
+        # an Absent record first.
+        # -----------------------------------------
+
+        if not attendance:
+
+            cursor.execute(
+                """
+                INSERT INTO attendance
+                (
+                    session_id,
+                    teacher_id,
+                    student_name,
+                    teacher_name,
+                    prn,
+                    department,
+                    year,
+                    subject,
+                    attendance_date,
+                    attendance_time,
+                    status
+                )
+                VALUES
+                (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    NULL,
+                    'Absent'
+                )
+                """,
+                (
+                    session_id,
+                    session["teacher_id"],
+                    student["full_name"],
+                    teacher["full_name"],
+                    prn,
+                    session["department"],
+                    session["year"],
+                    session["subject"],
+                    session["lecture_date"]
+                )
+            )
+
+            attendance_id = cursor.lastrowid
+
+            current_status = "Absent"
+
+        else:
+
+            attendance_id = attendance["attendance_id"]
+
+            current_status = attendance["status"]
+
+        # -----------------------------------------
+        # ONLY ABSENT CAN GET LEAVE
+        # -----------------------------------------
+
+        if current_status != "Absent":
+
+            return jsonify({
+                "success": False,
+                "message":
+                    "Leave can only be applied to an absent student."
+            }), 400
+
+        # -----------------------------------------
+        # APPLY LEAVE
+        # -----------------------------------------
+
+        cursor.execute(
+            """
+            UPDATE attendance
+            SET
+                status = 'Leave',
+                leave_type = %s,
+                leave_comment = %s,
+                leave_verified = 1,
+                leave_marked_by = %s,
+                leave_marked_at = NOW()
+            WHERE attendance_id = %s
+            """,
+            (
+                leave_type,
+                leave_comment,
+                teacher_id,
+                attendance_id
+            )
+        )
+
+        conn.commit()
+
+        print("============================================")
+        print("STUDENT LEAVE APPLIED SUCCESSFULLY")
+        print("Teacher ID:", teacher_id)
+        print("Student PRN:", prn)
+        print("Student:", student["full_name"])
+        print("Session ID:", session_id)
+        print("Leave Type:", leave_type)
+        print("Verified: YES")
+        print("============================================")
+
+        return jsonify({
+            "success": True,
+            "message":
+                f"{student['full_name']} marked on {leave_type} successfully.",
+            "prn": prn,
+            "student_name": student["full_name"],
+            "leave_type": leave_type,
+            "leave_comment": leave_comment,
+            "status": "Leave"
+        }), 200
+
+    except Exception as e:
+
+        print("============================================")
+        print("APPLY LEAVE ERROR")
+        print(str(e))
+        print("============================================")
+
+        try:
+            if conn:
+                conn.rollback()
+        except Exception:
+            pass
+
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+
+    finally:
+
+        try:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+        except Exception:
+            pass
+
 @app.route(
     "/teacher/attendance",
     methods=["GET"]

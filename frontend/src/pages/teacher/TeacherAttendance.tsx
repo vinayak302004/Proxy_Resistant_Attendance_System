@@ -18,6 +18,9 @@ interface Student {
   student_name: string;
   status: string;
   attendance_time: string;
+  leave_type?: string;
+  leave_comment?: string;
+  leave_verified?: boolean;
 }
 export default function TeacherAttendance() {
   const navigate = useNavigate();
@@ -34,6 +37,10 @@ export default function TeacherAttendance() {
   const [selectedDefaulterThreshold, setSelectedDefaulterThreshold] =
   useState<number>(75);
   const [downloading, setDownloading] = useState<boolean>(false);
+  const [leaveStudent, setLeaveStudent] = useState<Student | null>(null);
+  const [leaveType, setLeaveType] = useState<string>("Sick Leave");
+  const [leaveComment, setLeaveComment] = useState<string>("");
+  const [applyingLeave, setApplyingLeave] = useState<boolean>(false);
 
   useEffect(() => {
     loadSessions();
@@ -141,6 +148,93 @@ export default function TeacherAttendance() {
     );
   }
 };
+
+const applyStudentLeave = async () => {
+  if (!leaveStudent) {
+    return;
+  }
+
+  if (!selectedSession) {
+    alert("Please select a lecture first.");
+    return;
+  }
+
+  if (!leaveType) {
+    alert("Please select a leave type.");
+    return;
+  }
+
+  if (!leaveComment.trim()) {
+    alert("Please enter a verification comment.");
+    return;
+  }
+
+  const teacherId = localStorage.getItem("teacher_id");
+
+  if (!teacherId) {
+    alert("Teacher ID not found. Please login again.");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Are you sure you want to approve ${leaveType} for ${leaveStudent.student_name}?`
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setApplyingLeave(true);
+
+  try {
+    const response = await fetch(
+      `${API_URL}/teacher/attendance/apply-leave`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          teacher_id: teacherId,
+          session_id: selectedSession,
+          prn: leaveStudent.prn,
+          leave_type: leaveType,
+          leave_comment: leaveComment.trim(),
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      throw new Error(
+        data.message || "Failed to apply leave."
+      );
+    }
+
+    alert(
+      `✅ ${leaveStudent.student_name} has been marked on ${leaveType}.`
+    );
+
+    setLeaveStudent(null);
+    setLeaveType("Sick Leave");
+    setLeaveComment("");
+
+    await loadStudents(selectedSession);
+
+  } catch (error) {
+    console.error("Apply leave error:", error);
+
+    alert(
+      error instanceof Error
+        ? error.message
+        : "Failed to apply student leave."
+    );
+  } finally {
+    setApplyingLeave(false);
+  }
+};
+
   const downloadExcel = async (
   type: "attendance" | "defaulters"
 ) => {
@@ -571,6 +665,15 @@ export default function TeacherAttendance() {
             </h2>
             <span>Absent</span>
         </div>
+        <div className="summary-card leave-summary">
+          <h2>
+            {students.filter(
+              (s) => s.status === "Leave"
+            ).length}
+          </h2>
+
+          <span>Leave</span>
+        </div>
 
     </div>
       <div className="table-card">
@@ -584,7 +687,7 @@ export default function TeacherAttendance() {
                 <th>Name</th>
                 <th>Status</th>
                 <th>Time</th>
-                <th>Action</th>
+                <th className="action-column">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -610,6 +713,8 @@ export default function TeacherAttendance() {
                         className={
                           student.status === "Present"
                             ? "status present"
+                            : student.status === "Leave"
+                            ? "status leave"
                             : "status absent"
                         }
                       >
@@ -619,19 +724,34 @@ export default function TeacherAttendance() {
                     <td>
                       {student.attendance_time}
                     </td>
-                    <td>
+                    <td className="action-column">
                       {student.status === "Absent" ? (
-                        <button
-                          className="mark-present-btn"
-                          onClick={() =>
-                            markStudentPresent(
-                              student.prn,
-                              student.student_name
-                            )
-                          }
-                        >
-                          ✓ Mark Present
-                        </button>
+                        <div className="attendance-actions">
+
+                          <button
+                            className="mark-present-btn"
+                            onClick={() =>
+                              markStudentPresent(
+                                student.prn,
+                                student.student_name
+                              )
+                            }
+                          >
+                            ✓ Mark Present
+                          </button>
+
+                          <button
+                            className="apply-leave-btn"
+                            onClick={() => {
+                              setLeaveStudent(student);
+                              setLeaveType("Sick Leave");
+                              setLeaveComment("");
+                            }}
+                          >
+                            📝 Apply Leave
+                          </button>
+
+                        </div>
                       ) : (
                         <span
                           style={{
@@ -649,7 +769,169 @@ export default function TeacherAttendance() {
             </tbody>
           </table>
         )}
-      </div>
+            </div>
+
+      {leaveStudent && (
+        <div className="leave-modal-overlay">
+
+          <div className="leave-modal">
+
+            <div className="leave-modal-header">
+
+              <div>
+                <h2>Apply Student Leave</h2>
+
+                <p>
+                  Faculty verification required
+                </p>
+              </div>
+
+              <button
+                className="leave-close-btn"
+                onClick={() => setLeaveStudent(null)}
+              >
+                ×
+              </button>
+
+            </div>
+
+            <div className="leave-student-info">
+
+              <p>
+                <b>Student:</b>{" "}
+                {leaveStudent.student_name}
+              </p>
+
+              <p>
+                <b>PRN:</b>{" "}
+                {leaveStudent.prn}
+              </p>
+
+              <p>
+                <b>Subject:</b>{" "}
+                {currentLecture?.subject}
+              </p>
+
+              <p>
+                <b>Date:</b>{" "}
+                {currentLecture?.lecture_date}
+              </p>
+
+            </div>
+
+            <div className="leave-form-group">
+
+              <label htmlFor="leave-type">
+                Leave Type
+              </label>
+
+              <select
+                id="leave-type"
+                value={leaveType}
+                onChange={(e) =>
+                  setLeaveType(e.target.value)
+                }
+              >
+
+                <option value="Sick Leave">
+                  Sick Leave
+                </option>
+
+                <option value="Emergency Leave">
+                  Emergency Leave
+                </option>
+
+                <option value="Casual Leave">
+                  Casual Leave
+                </option>
+
+                <option value="Placement Leave">
+                  Placement Leave
+                </option>
+
+                <option value="Medical Leave">
+                  Medical Leave
+                </option>
+
+                <option value="Family/Personal Leave">
+                  Family/Personal Leave
+                </option>
+
+                <option value="Other">
+                  Other
+                </option>
+
+              </select>
+
+            </div>
+
+            <div className="leave-form-group">
+
+              <label htmlFor="leave-comment">
+                Faculty Verification Comment
+              </label>
+
+              <textarea
+                id="leave-comment"
+                value={leaveComment}
+                onChange={(e) =>
+                  setLeaveComment(e.target.value)
+                }
+                placeholder="Example: Medical certificate verified offline by faculty."
+                rows={4}
+              />
+
+            </div>
+
+            <div className="leave-verification-note">
+
+              <span>✓</span>
+
+              <div>
+
+                <strong>
+                  Offline Proof Verification
+                </strong>
+
+                <p>
+                  Faculty confirms that the student's
+                  supporting document/proof has been
+                  reviewed offline before approving leave.
+                </p>
+
+              </div>
+
+            </div>
+
+            <div className="leave-modal-actions">
+
+              <button
+                className="leave-cancel-btn"
+                onClick={() =>
+                  setLeaveStudent(null)
+                }
+                disabled={applyingLeave}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="leave-approve-btn"
+                onClick={applyStudentLeave}
+                disabled={applyingLeave}
+              >
+                {applyingLeave
+                  ? "Applying..."
+                  : "✓ Approve Leave"}
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+      )}
+
     </div>
   );
 }
