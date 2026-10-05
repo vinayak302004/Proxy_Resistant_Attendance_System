@@ -430,3 +430,316 @@
     min-width: 850px;
   }
 }
+
+/* =========================
+   ATTENDANCE ACTIONS
+========================= */
+
+.attendance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.attendance-actions button {
+  margin: 0;
+  width: auto;
+  white-space: nowrap;
+}
+
+.mark-present-btn,
+.apply-leave-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mark-present-btn {
+  background: #16a34a;
+  color: white;
+}
+
+.mark-present-btn:hover {
+  background: #15803d;
+}
+
+.apply-leave-btn {
+  background: #ffca08;
+  color: #111111;
+}
+
+.apply-leave-btn:hover {
+  background: #c99e00;
+}
+
+
+/* =========================
+   LEAVE STATUS
+========================= */
+
+.status.leave {
+  background: #fff4c2;
+  color: #8a6500;
+  border: 1px solid #ffca08;
+}
+
+
+/* =========================
+   LEAVE SUMMARY
+========================= */
+
+.leave-summary {
+  background: #fff4c2;
+  color: #111111;
+}
+
+
+/* =========================
+   LEAVE MODAL
+========================= */
+
+.leave-modal-overlay {
+  position: fixed;
+  inset: 0;
+
+  background: rgba(0, 0, 0, 0.55);
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  z-index: 9999;
+
+  padding: 20px;
+}
+
+.leave-modal {
+  width: 100%;
+  max-width: 560px;
+
+  background: #fffdf2;
+
+  border-radius: 14px;
+
+  box-shadow:
+    0 15px 50px rgba(0, 0, 0, 0.25);
+
+  overflow: hidden;
+}
+
+
+/* Header */
+
+.leave-modal-header {
+  background: #ffca08;
+
+  padding: 20px 24px;
+
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.leave-modal-header h2 {
+  margin: 0;
+  color: #111111;
+}
+
+.leave-modal-header p {
+  margin: 5px 0 0;
+  color: #333333;
+  font-size: 13px;
+}
+
+.leave-close-btn {
+  border: none;
+  background: transparent;
+
+  font-size: 30px;
+  line-height: 1;
+
+  cursor: pointer;
+
+  color: #111111;
+}
+
+
+/* Student information */
+
+.leave-student-info {
+  padding: 18px 24px;
+
+  background: #ffffff;
+
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.leave-student-info p {
+  margin: 7px 0;
+}
+
+
+/* Form */
+
+.leave-form-group {
+  padding: 0 24px;
+  margin-top: 18px;
+}
+
+.leave-form-group label {
+  display: block;
+
+  margin-bottom: 7px;
+
+  font-weight: 700;
+
+  color: #111111;
+}
+
+.leave-form-group select,
+.leave-form-group textarea {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  border: 1px solid #d1d5db;
+
+  border-radius: 7px;
+
+  padding: 11px;
+
+  font-family: inherit;
+
+  font-size: 14px;
+
+  background: white;
+}
+
+.leave-form-group select:focus,
+.leave-form-group textarea:focus {
+  outline: none;
+
+  border-color: #ffca08;
+
+  box-shadow:
+    0 0 0 2px rgba(255, 202, 8, 0.2);
+}
+
+.leave-form-group textarea {
+  resize: vertical;
+}
+
+
+/* Verification note */
+
+.leave-verification-note {
+  margin: 20px 24px;
+
+  padding: 14px;
+
+  display: flex;
+
+  gap: 12px;
+
+  background: #fff4c2;
+
+  border-left: 4px solid #ffca08;
+
+  border-radius: 6px;
+}
+
+.leave-verification-note > span {
+  font-size: 20px;
+}
+
+.leave-verification-note strong {
+  color: #111111;
+}
+
+.leave-verification-note p {
+  margin: 5px 0 0;
+
+  font-size: 13px;
+
+  line-height: 1.4;
+}
+
+
+/* Modal buttons */
+
+.leave-modal-actions {
+  padding: 18px 24px;
+
+  display: flex;
+
+  justify-content: flex-end;
+
+  gap: 10px;
+
+  background: #ffffff;
+}
+
+.leave-cancel-btn,
+.leave-approve-btn {
+  border: none;
+
+  border-radius: 7px;
+
+  padding: 11px 18px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.leave-cancel-btn {
+  background: #e5e7eb;
+  color: #111111;
+}
+
+.leave-approve-btn {
+  background: #16a34a;
+  color: white;
+}
+
+.leave-approve-btn:hover {
+  background: #15803d;
+}
+
+.leave-cancel-btn:disabled,
+.leave-approve-btn:disabled {
+  opacity: 0.6;
+
+  cursor: not-allowed;
+}
+
+/* =========================
+   ACTION COLUMN
+========================= */
+
+.table-card th.action-column,
+.table-card td.action-column {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.attendance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.attendance-actions button {
+  margin: 0;
+  width: auto;
+  white-space: nowrap;
+}
