@@ -41,7 +41,7 @@ The system workflow is divided into key modules:
 
 ### **Login Page**
 
-![Login Page](screenshots/Login.png)
+![Login Page](screenshots\Login_Page.png)
 
 ---
 
@@ -53,7 +53,27 @@ The system workflow is divided into key modules:
 
 ### **Teacher Attendance Dashboard**
 
-![Teacher Attendance Dashboard](screenshots/Teacher_Attendance.png)
+![Teacher Attendance Dashboard 1](screenshots/Teacher_Attendance_Dashboard1.png)
+
+![Teacher Attendance Dashboard 2](screenshots/Teacher_Attendance_Dashboard2.png)
+
+---
+
+### **Apply Leave**
+
+![Apply Leave](screenshots/Leave_Apply.png)
+
+---
+
+### **Monthly Attendace List**
+
+![Monthly Attendance List](screenshots/Monthly_Attendance_Report.png)
+
+---
+
+### **Defaulter List**
+
+![Defaulter List](screenshots/Defaulter_Report.png)
 
 ---
 
@@ -65,19 +85,29 @@ The system workflow is divided into key modules:
 
 ### **Student Attendance Dashboard**
 
-![Student Attendance Dashboard](screenshots/Student_Attendance.png)
+![Student Attendance Dashboard](screenshots/Student_Attendance_Dashboard.png)
 
 ---
 
 ### **Scanner**
 
-![Scanner](screenshots/Scanner.jpeg)
+![Scanner](screenshots/QR_Scanner.jpeg)
 
 ---
 
 ### **Selfie Camera**
 
-![SelfieCamera](screenshots/Selfie_Camera.jpg)
+![SelfieCamera](screenshots/Face_Scanner.jpeg)
+
+---
+
+### **Admin Dashboard**
+
+![Admin Dashboard 1](screenshots/Admin_Dashboard1.png)
+
+![Admin Dashboard 2](screenshots/Admin_Dashboard2.png)
+
+![Admin Dashboard 3](screenshots/Admin_Dashboard3.png)
 
 ---
 
