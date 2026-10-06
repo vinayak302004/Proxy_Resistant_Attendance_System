@@ -41,13 +41,13 @@ The system workflow is divided into key modules:
 
 ### **Login Page**
 
-![Login Page](screenshots\Login_Page.png)
+![Login Page](screenshots\Login.png)
 
 ---
 
 ### **Teacher Dashboard**
 
-![Teacher Dashboard](screenshots/Teacher_Dashboard.png)
+![Teacher Dashboard](screenshots/Teacher.png)
 
 ---
 
@@ -79,7 +79,7 @@ The system workflow is divided into key modules:
 
 ### **Student Dashboard**
 
-![Student Dashboard](screenshots/Student_Dashboard.png)
+![Student Dashboard](screenshots/Student.png)
 
 ---
 
