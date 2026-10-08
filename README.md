@@ -41,7 +41,7 @@ The system workflow is divided into key modules:
 
 ### **Login Page**
 
-![Login Page](screenshots\Login.png)
+![Login Page](screenshots/Login.png)
 
 ---
 
