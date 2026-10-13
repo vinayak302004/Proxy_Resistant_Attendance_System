@@ -169,9 +169,18 @@ export default function AdminDashboard() {
         );
       }
 
-      setStudents(
-        data.students || data
+      const studentData = data.students || data;
+
+      const sortedStudents = [...studentData].sort(
+        (a, b) =>
+          String(a.prn).localeCompare(
+            String(b.prn),
+            undefined,
+            { numeric: true }
+          )
       );
+
+      setStudents(sortedStudents);
 
       setStudentListError("");
     } catch (error: any) {
