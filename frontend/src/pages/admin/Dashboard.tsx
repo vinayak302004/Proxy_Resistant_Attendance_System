@@ -97,7 +97,7 @@ export default function AdminDashboard() {
   const [selectedYear, setSelectedYear] =
     useState("");
 
-  const [studentListError, setStudentListError] =
+  const [, setStudentListError] =
     useState("");
 
   const [selectedDepartment, setSelectedDepartment] =
