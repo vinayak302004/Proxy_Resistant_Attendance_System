@@ -13,8 +13,7 @@ import { API_URL } from "../../config";
 import ritLogo from "../../assets/RIT_logo.jpeg";
 
 import {
-  getAuth,
-  onAuthStateChanged
+  getAuth
 } from "firebase/auth";
 
 import {
