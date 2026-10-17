@@ -1,7 +1,33 @@
 import { useEffect, useState, useRef } from "react";
+
+import {
+  getAuth,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword
+} from "firebase/auth";
+
 import "../../styles/dashboard.css";
 import { useNavigate } from "react-router-dom";
 import RITLogo from "../../assets/RIT_logo.jpeg";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDsJPGm7CwJEE2o2kI0NAiSKia0YQxEvMs",
+  authDomain: "smart-attendance-login.firebaseapp.com",
+  projectId: "smart-attendance-login",
+  storageBucket: "smart-attendance-login.firebasestorage.app",
+  messagingSenderId: "198869708642",
+  appId: "1:198869708642:web:b762ec97baf3bb9c97863b6"
+};
+
+const firebaseApp =
+  getApps().length > 0
+    ? getApps()[0]
+    : initializeApp(firebaseConfig);
+
+const auth = getAuth(firebaseApp);
+
+import { getApps, initializeApp } from "firebase/app";
 
 const departmentSubjects: {
   [department: string]: {
@@ -80,6 +106,21 @@ const labTimeSlots = [
 
 export default function Dashboard() {
   const [teacher, setTeacher] = useState<any>(null);
+
+  const [showChangePassword, setShowChangePassword] =
+    useState(false);
+
+  const [currentPassword, setCurrentPassword] =
+    useState("");
+
+  const [newPassword, setNewPassword] =
+    useState("");
+
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
+  const [changingPassword, setChangingPassword] =
+    useState(false);
 
   const [attendanceActive, setAttendanceActive] =
     useState(false);
@@ -415,7 +456,73 @@ export default function Dashboard() {
       stopSession();
     }
   };
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert("Please fill in all password fields.");
+      return;
+    }
 
+    if (newPassword.length < 6) {
+      alert("New password must contain at least 6 characters.");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      alert("New password must differ from your current password.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert("New password and confirm password do not match.");
+      return;
+    }
+
+    const user = auth.currentUser;
+
+    if (!user || !user.email) {
+      alert("Please log in again before changing your password.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+
+      await reauthenticateWithCredential(user, credential);
+
+      await updatePassword(user, newPassword);
+
+      alert("Password changed successfully!");
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePassword(false);
+    } catch (err: any) {
+      console.error("Change password error:", err);
+
+      if (
+        err.code === "auth/wrong-password" ||
+        err.code === "auth/invalid-credential"
+      ) {
+        alert("Current password is incorrect.");
+      } else if (err.code === "auth/weak-password") {
+        alert("Please choose a stronger password.");
+      } else if (err.code === "auth/too-many-requests") {
+        alert("Too many attempts. Please try again later.");
+      } else if (err.code === "auth/requires-recent-login") {
+        alert("Your session has expired. Please log in again.");
+      } else {
+        alert(err.message || "Unable to change password.");
+      }
+    } finally {
+      setChangingPassword(false);
+    }
+  };
   return (
     <>
       <header className="dashboard-header">
@@ -648,6 +755,110 @@ export default function Dashboard() {
           >
             View Attendance
           </button>
+          <div style={{ marginTop: "20px" }}>
+            <button
+              type="button"
+              onClick={() => setShowChangePassword(!showChangePassword)}
+            >
+              🔒 Change Password
+            </button>
+
+            {showChangePassword && (
+              <div style={{ marginTop: "20px", textAlign: "left" }}>
+                <h3>Change Your Password</h3>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <label htmlFor="teacher-current-password">
+                    Current Password
+                  </label>
+
+                  <input
+                    id="teacher-current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    autoComplete="current-password"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "10px",
+                      marginTop: "6px"
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "12px" }}>
+                  <label htmlFor="teacher-new-password">
+                    New Password
+                  </label>
+
+                  <input
+                    id="teacher-new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    autoComplete="new-password"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "10px",
+                      marginTop: "6px"
+                    }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: "15px" }}>
+                  <label htmlFor="teacher-confirm-password">
+                    Confirm New Password
+                  </label>
+
+                  <input
+                    id="teacher-confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    autoComplete="new-password"
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: "10px",
+                      marginTop: "6px"
+                    }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                >
+                  {changingPassword
+                    ? "Changing Password..."
+                    : "Update Password"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowChangePassword(false);
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
+                  disabled={changingPassword}
+                  style={{ marginTop: "10px" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* RIGHT CARD */}

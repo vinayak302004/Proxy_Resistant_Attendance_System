@@ -3,7 +3,10 @@ import "../../styles/admin.css";
 
 import {
   getAuth,
-  onAuthStateChanged
+  onAuthStateChanged,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword
 } from "firebase/auth";
 
 import {
@@ -120,6 +123,12 @@ export default function AdminDashboard() {
 
   const [bulkResult, setBulkResult] =
     useState<any>(null);
+
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const fetchStudents = async (
     year = selectedYear,
@@ -591,6 +600,76 @@ export default function AdminDashboard() {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      alert("Please fill in all password fields.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      alert("New password must contain at least 6 characters.");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      alert("New password must differ from your current password.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      alert("New password and confirm password do not match.");
+      return;
+    }
+
+    const user = auth.currentUser;
+
+    if (!user || !user.email) {
+      alert("Please log in again before changing your password.");
+      return;
+    }
+
+    try {
+      setChangingPassword(true);
+
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword
+      );
+
+      // Verify the current password.
+      await reauthenticateWithCredential(user, credential);
+
+      // Update the Firebase Authentication password.
+      await updatePassword(user, newPassword);
+
+      alert("Password changed successfully!");
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setShowChangePassword(false);
+    } catch (error: any) {
+      console.error("Change password error:", error);
+
+      if (
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/invalid-credential"
+      ) {
+        alert("Current password is incorrect.");
+      } else if (error.code === "auth/weak-password") {
+        alert("Please choose a stronger password.");
+      } else if (error.code === "auth/too-many-requests") {
+        alert("Too many attempts. Please try again later.");
+      } else if (error.code === "auth/requires-recent-login") {
+        alert("Your session has expired. Please log in again.");
+      } else {
+        alert(error.message || "Unable to change password.");
+      }
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -1306,11 +1385,94 @@ export default function AdminDashboard() {
               </div>
             )}
           </div>
+          <div className="admin-password-section">
+            <button
+              type="button"
+              className="admin-add-btn"
+              onClick={() => setShowChangePassword(!showChangePassword)}
+            >
+              🔒 Change Password
+            </button>
+
+            {showChangePassword && (
+              <div className="admin-password-form">
+                <h3>Change Your Password</h3>
+
+                <div className="admin-field">
+                  <label htmlFor="admin-current-password">
+                    Current Password
+                  </label>
+                  <input
+                    id="admin-current-password"
+                    type="password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="Enter current password"
+                    autoComplete="current-password"
+                    disabled={changingPassword}
+                  />
+                </div>
+
+                <div className="admin-field">
+                  <label htmlFor="admin-new-password">
+                    New Password
+                  </label>
+                  <input
+                    id="admin-new-password"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    autoComplete="new-password"
+                    disabled={changingPassword}
+                  />
+                </div>
+
+                <div className="admin-field">
+                  <label htmlFor="admin-confirm-password">
+                    Confirm New Password
+                  </label>
+                  <input
+                    id="admin-confirm-password"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    autoComplete="new-password"
+                    disabled={changingPassword}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="admin-add-btn"
+                  onClick={handleChangePassword}
+                  disabled={changingPassword}
+                >
+                  {changingPassword ? "Changing Password..." : "Update Password"}
+                </button>
+
+                <button
+                  type="button"
+                  className="admin-password-cancel-btn"
+                  onClick={() => {
+                    setShowChangePassword(false);
+                    setCurrentPassword("");
+                    setNewPassword("");
+                    setConfirmPassword("");
+                  }}
+                  disabled={changingPassword}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
 
           <button
             className="admin-logout-btn"
             onClick={logout}
-            disabled={loading}
+            disabled={loading || changingPassword}
           >
             Logout
           </button>
